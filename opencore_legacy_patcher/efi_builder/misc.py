@@ -412,4 +412,5 @@ class BuildMiscellaneous:
         if self.model not in ["MacBookAir8,1", "MacBookAir8,2"]:
             return
 
-        logging.info("- T2 Mac detected: using native kexts (no T1 injection)")
+        logging.info("- Enabling T2 BridgeOS coprocessor version injection")
+        support.BuildSupport(self.model, self.constants, self.config).enable_kext("iBridged.kext", self.constants.ibridged_version, self.constants.ibridged_path)
