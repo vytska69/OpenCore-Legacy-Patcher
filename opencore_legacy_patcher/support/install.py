@@ -160,6 +160,7 @@ class tui_disk_installation:
 
         # T2 Macs (MacBookAir8,1/8,2) don't auto-detect unsigned boot.efi in Startup Manager.
         # bless --setBoot registers an explicit NVRAM boot entry so OpenCore appears on first boot.
+        # Also copy to EFI/BOOT/BOOTx64.efi so T2 Startup Manager shows "EFI Boot" on USB installs.
         _t2_models = ["MacBookAir8,1", "MacBookAir8,2"]
         _current_model = self.constants.custom_model or (
             self.constants.computer.real_model if self.constants.computer else None
@@ -167,6 +168,10 @@ class tui_disk_installation:
         if _current_model in _t2_models:
             _boot_efi = mount_path / Path("System/Library/CoreServices/boot.efi")
             if _boot_efi.exists():
+                logging.info("- Adding T2 fallback EFI/BOOT/BOOTx64.efi for Startup Manager visibility")
+                subprocess.run(["/bin/mkdir", "-p", mount_path / Path("EFI/BOOT")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                subprocess.run(["/bin/cp", str(_boot_efi), mount_path / Path("EFI/BOOT/BOOTx64.efi")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
                 logging.info("- Registering T2 boot entry via bless")
                 subprocess_wrapper.run_as_root(
                     ["/usr/sbin/bless", "--mount", str(mount_path), "--setBoot",
