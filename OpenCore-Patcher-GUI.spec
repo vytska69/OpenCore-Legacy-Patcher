@@ -55,7 +55,7 @@ exe = EXE(pyz,
           upx=True,
           console=False,
           disable_windowed_traceback=False,
-          target_arch="universal2",
+          target_arch=None,  # None = native arch; universal2 requires fat wxpython wheels
           codesign_identity=None,
           entitlements_file=None)
 
