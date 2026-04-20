@@ -137,6 +137,15 @@ class tui_disk_installation:
         if Path(self.constants.opencore_release_folder / Path("boot.efi")).exists():
             subprocess.run(["/bin/cp", self.constants.opencore_release_folder / Path("boot.efi"), mount_path / Path("boot.efi")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
+        # T2 Macs need EFI/BOOT/BOOTx64.efi so their Startup Manager shows an "EFI Boot" entry.
+        # Force boot_efi=True before the conversion block so the standard path handles it.
+        _t2_models = ["MacBookAir8,1", "MacBookAir8,2"]
+        _current_model = self.constants.custom_model or (
+            self.constants.computer.real_model if self.constants.computer else None
+        )
+        if _current_model in _t2_models:
+            self.constants.boot_efi = True
+
         if self.constants.boot_efi is True:
             logging.info("Converting Bootstrap to BOOTx64.efi")
             if (mount_path / Path("EFI/BOOT")).exists():
@@ -158,24 +167,14 @@ class tui_disk_installation:
             logging.info("Adding Internal Drive icon")
             subprocess.run(["/bin/cp", self.constants.icon_path_internal, mount_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-        # T2 Macs (MacBookAir8,1/8,2) don't auto-detect unsigned boot.efi in Startup Manager.
-        # bless --setBoot registers an explicit NVRAM boot entry so OpenCore appears on first boot.
-        # Also copy to EFI/BOOT/BOOTx64.efi so T2 Startup Manager shows "EFI Boot" on USB installs.
-        _t2_models = ["MacBookAir8,1", "MacBookAir8,2"]
-        _current_model = self.constants.custom_model or (
-            self.constants.computer.real_model if self.constants.computer else None
-        )
+        # T2 Macs: bless the BOOTx64.efi so NVRAM boot entry is registered (internal drive installs).
         if _current_model in _t2_models:
-            _boot_efi = mount_path / Path("System/Library/CoreServices/boot.efi")
-            if _boot_efi.exists():
-                logging.info("- Adding T2 fallback EFI/BOOT/BOOTx64.efi for Startup Manager visibility")
-                subprocess.run(["/bin/mkdir", "-p", mount_path / Path("EFI/BOOT")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                subprocess.run(["/bin/cp", str(_boot_efi), mount_path / Path("EFI/BOOT/BOOTx64.efi")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
+            _bootx64 = mount_path / Path("EFI/BOOT/BOOTx64.efi")
+            if _bootx64.exists():
                 logging.info("- Registering T2 boot entry via bless")
                 subprocess_wrapper.run_as_root(
                     ["/usr/sbin/bless", "--mount", str(mount_path), "--setBoot",
-                     "--file", str(_boot_efi), "--shortform"],
+                     "--file", str(_bootx64), "--shortform"],
                     stdout=subprocess.PIPE, stderr=subprocess.PIPE
                 )
 
