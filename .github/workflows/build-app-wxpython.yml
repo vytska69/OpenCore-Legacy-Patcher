@@ -109,4 +109,4 @@ jobs:
 
             ### Changes
             - Added T2 Mac support for MacBookAir8,1 (MacBook Air 2018) and MacBookAir8,2 (MacBook Air 2019)
-            - Fixes kernel panic: `AppleSEPManager panic for AppleKeyStore: sks request timeout`
+            - Fixes USB boot entry not appearing in T2 Mac Startup Manager (adds EFI/BOOT/BOOTx64.efi)

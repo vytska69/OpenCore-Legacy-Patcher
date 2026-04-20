@@ -26,7 +26,7 @@ from ..datasets import (
 class BuildMiscellaneous:
     """
     Build Library for Miscellaneous Hardware and Software Support
-xw
+
     Invoke from build.py
     """
 
@@ -402,30 +402,14 @@ xw
         """
         T2 Security Chip Handler
 
-        MacBookAir8,1 and MacBookAir8,2 panic when booted through OpenCorePkg
-        because AppleKeyStore times out waiting for the T2 SEP to respond:
-          "AppleSEPManager panic for AppleKeyStore: sks request timeout"
-        Replacing the affected kexts with the T1-compatible (13.6) versions
-        prevents the timeout because those versions do not wait for a live SEP.
+        MacBookAir8,1/8,2 natively support macOS Sequoia, so their built-in
+        T2 kexts (AppleSSE, AppleKeyStore, AppleCredentialManager) must NOT
+        be blocked or replaced.  T1 kexts communicate via USB/SPI and cannot
+        talk to the T2's PCIe/iBridge SEP; injecting them causes a silent hang
+        at the Apple logo.  The only OCLP-side change needed for T2 Macs is the
+        EFI/BOOT/BOOTx64.efi layout in install.py (handled there).
         """
         if self.model not in ["MacBookAir8,1", "MacBookAir8,2"]:
             return
 
-        logging.info("- Enabling T2 Security Chip support")
-
-        support.BuildSupport(self.model, self.constants, self.config).get_item_by_kv(self.config["Kernel"]["Block"], "Identifier", "com.apple.driver.AppleSSE")["Enabled"] = True
-        support.BuildSupport(self.model, self.constants, self.config).get_item_by_kv(self.config["Kernel"]["Block"], "Identifier", "com.apple.driver.AppleKeyStore")["Enabled"] = True
-        support.BuildSupport(self.model, self.constants, self.config).get_item_by_kv(self.config["Kernel"]["Block"], "Identifier", "com.apple.driver.AppleCredentialManager")["Enabled"] = True
-
-        support.BuildSupport(self.model, self.constants, self.config).enable_kext("corecrypto_T1.kext", self.constants.t1_corecrypto_version, self.constants.t1_corecrypto_path)
-        support.BuildSupport(self.model, self.constants, self.config).enable_kext("AppleSSE.kext", self.constants.t1_sse_version, self.constants.t1_sse_path)
-        support.BuildSupport(self.model, self.constants, self.config).enable_kext("AppleKeyStore.kext", self.constants.t1_key_store_version, self.constants.t1_key_store_path)
-        support.BuildSupport(self.model, self.constants, self.config).enable_kext("AppleCredentialManager.kext", self.constants.t1_credential_version, self.constants.t1_credential_path)
-        support.BuildSupport(self.model, self.constants, self.config).enable_kext("KernelRelayHost.kext", self.constants.kernel_relay_version, self.constants.kernel_relay_path)
-
-        # Enable file logging to EFI partition so boot logs survive a panic.
-        # 0x43 = Console (0x01) | File (0x02) | Enable (0x40)
-        logging.info("- Enabling OpenCore file logging for T2 debug")
-        self.config["Misc"]["Debug"]["Target"] = 0x43
-        self.config["Misc"]["Debug"]["DisplayLevel"] = 0x80000042
-        self.config["Misc"]["Debug"]["SysReport"] = True
+        logging.info("- T2 Mac detected: using native kexts (no T1 injection)")
