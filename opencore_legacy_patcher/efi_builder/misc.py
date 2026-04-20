@@ -414,3 +414,9 @@ class BuildMiscellaneous:
 
         logging.info("- Enabling T2 BridgeOS coprocessor version injection")
         support.BuildSupport(self.model, self.constants, self.config).enable_kext("iBridged.kext", self.constants.ibridged_version, self.constants.ibridged_path)
+
+        # Lilu and its plugins (RestrictEvents etc.) are unnecessary on T2 Macs
+        # that natively support Sequoia and may cause the installer to hang at
+        # the gray screen. Disable Lilu entirely via boot-arg.
+        logging.info("- Disabling Lilu for T2 Mac (not needed, may cause installer hang)")
+        self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " liluoff"
