@@ -158,6 +158,22 @@ class tui_disk_installation:
             logging.info("Adding Internal Drive icon")
             subprocess.run(["/bin/cp", self.constants.icon_path_internal, mount_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
+        # T2 Macs (MacBookAir8,1/8,2) don't auto-detect unsigned boot.efi in Startup Manager.
+        # bless --setBoot registers an explicit NVRAM boot entry so OpenCore appears on first boot.
+        _t2_models = ["MacBookAir8,1", "MacBookAir8,2"]
+        _current_model = self.constants.custom_model or (
+            self.constants.computer.real_model if self.constants.computer else None
+        )
+        if _current_model in _t2_models:
+            _boot_efi = mount_path / Path("System/Library/CoreServices/boot.efi")
+            if _boot_efi.exists():
+                logging.info("- Registering T2 boot entry via bless")
+                subprocess_wrapper.run_as_root(
+                    ["/usr/sbin/bless", "--mount", str(mount_path), "--setBoot",
+                     "--file", str(_boot_efi), "--shortform"],
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE
+                )
+
         logging.info("Cleaning install location")
         if not self.constants.recovery_status:
             logging.info("Unmounting EFI partition")
