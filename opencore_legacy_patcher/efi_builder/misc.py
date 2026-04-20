@@ -422,3 +422,10 @@ xw
         support.BuildSupport(self.model, self.constants, self.config).enable_kext("AppleKeyStore.kext", self.constants.t1_key_store_version, self.constants.t1_key_store_path)
         support.BuildSupport(self.model, self.constants, self.config).enable_kext("AppleCredentialManager.kext", self.constants.t1_credential_version, self.constants.t1_credential_path)
         support.BuildSupport(self.model, self.constants, self.config).enable_kext("KernelRelayHost.kext", self.constants.kernel_relay_version, self.constants.kernel_relay_path)
+
+        # Enable file logging to EFI partition so boot logs survive a panic.
+        # 0x43 = Console (0x01) | File (0x02) | Enable (0x40)
+        logging.info("- Enabling OpenCore file logging for T2 debug")
+        self.config["Misc"]["Debug"]["Target"] = 0x43
+        self.config["Misc"]["Debug"]["DisplayLevel"] = 0x80000042
+        self.config["Misc"]["Debug"]["SysReport"] = True
