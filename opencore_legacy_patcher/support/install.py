@@ -167,16 +167,6 @@ class tui_disk_installation:
             logging.info("Adding Internal Drive icon")
             subprocess.run(["/bin/cp", self.constants.icon_path_internal, mount_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-        # T2 Macs: bless the BOOTx64.efi so NVRAM boot entry is registered (internal drive installs).
-        if _current_model in _t2_models:
-            _bootx64 = mount_path / Path("EFI/BOOT/BOOTx64.efi")
-            if _bootx64.exists():
-                logging.info("- Registering T2 boot entry via bless")
-                subprocess_wrapper.run_as_root(
-                    ["/usr/sbin/bless", "--mount", str(mount_path), "--setBoot",
-                     "--file", str(_bootx64), "--shortform"],
-                    stdout=subprocess.PIPE, stderr=subprocess.PIPE
-                )
 
         logging.info("Cleaning install location")
         if not self.constants.recovery_status:
