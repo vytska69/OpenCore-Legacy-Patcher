@@ -15,7 +15,7 @@ on:
 jobs:
   build:
     name: Build wxPython
-    runs-on: macos-latest
+    runs-on: macos-13
 
     env:
       branch: ${{ github.ref }}
@@ -29,15 +29,25 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          architecture: 'x64'
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
 
       - name: Install Dependencies
         run: python3 -m pip install -r requirements.txt
 
       - name: Force Universal2 charset for Python
         run: |
-          python3 -m pip uninstall -y charset_normalizer
-          python3 -m pip download --platform macosx_10_9_universal2 --only-binary=:all: charset-normalizer
-          python3 -m pip install charset_normalizer-*-macosx_10_9_universal2.whl
+          python3 -m pip uninstall -y charset_normalizer || true
+          python3 -m pip download --platform macosx_10_9_universal2 --only-binary=:all: --dest ./charset_tmp charset-normalizer
+          python3 -m pip install ./charset_tmp/charset_normalizer-*.whl
+          rm -rf ./charset_tmp
 
       - name: Prepare Assets (--prepare-assets)
         run: >
