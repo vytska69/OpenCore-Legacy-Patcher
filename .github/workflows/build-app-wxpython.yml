@@ -52,6 +52,9 @@ jobs:
           /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 -m pip install ./charset_tmp/charset_normalizer-*.whl
           rm -rf ./charset_tmp
 
+      - name: Recompile Privileged Helper (debug, no team ID check)
+        run: make -C ci_tooling/privileged_helper_tool debug
+
       - name: Prepare Assets (--prepare-assets)
         run: >
           /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 Build-Project.command
