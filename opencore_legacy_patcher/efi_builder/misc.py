@@ -415,6 +415,14 @@ class BuildMiscellaneous:
         logging.info("- Enabling T2 BridgeOS coprocessor version injection")
         support.BuildSupport(self.model, self.constants, self.config).enable_kext("iBridged.kext", self.constants.ibridged_version, self.constants.ibridged_path)
 
+        # WhateverGreen is normally only injected with Moderate/Advanced SMBIOS spoof,
+        # but T2 Macs need it for proper Intel iGPU rendering even with serial_settings="None".
+        # Without it the installer UI partially renders (language chooser shows) but
+        # interactive elements like the Next button don't respond.
+        logging.info("- Enabling WhateverGreen for T2 Mac iGPU rendering")
+        if not support.BuildSupport(self.model, self.constants, self.config).get_kext_by_bundle_path("WhateverGreen.kext")["Enabled"] is True:
+            support.BuildSupport(self.model, self.constants, self.config).enable_kext("WhateverGreen.kext", self.constants.whatevergreen_version, self.constants.whatevergreen_path)
+
         # Sequoia installer checks hardware compatibility and refuses to proceed
         # silently (gray screen hang) on unsupported T2 Macs. This bypasses it.
         logging.info("- Adding -no_compat_check for T2 Mac Sequoia installer")
