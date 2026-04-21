@@ -427,3 +427,13 @@ class BuildMiscellaneous:
         # silently (gray screen hang) on unsupported T2 Macs. This bypasses it.
         logging.info("- Adding -no_compat_check for T2 Mac Sequoia installer")
         self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -no_compat_check"
+
+        # After ~20 SEP mailbox timeouts AppleSEPManagerIntel panics with:
+        # "AppleSEPManager panic for 'AppleKeyStore': sks request timeout"
+        # Patch converts the panic call to an early return (MinKernel=24.0.0 scopes it to Sequoia only).
+        logging.info("- Enabling AppleSEPManager SEP timeout panic patch for T2 Macs")
+        support.BuildSupport(self.model, self.constants, self.config).get_item_by_kv(
+            self.config["Kernel"]["Patch"],
+            "Comment",
+            "Prevent AppleSEPManager SEP timeout panic on T2 Macs (Sequoia)"
+        )["Enabled"] = True
