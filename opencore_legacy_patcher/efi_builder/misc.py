@@ -422,17 +422,10 @@ class BuildMiscellaneous:
         support.BuildSupport(self.model, self.constants, self.config).get_item_by_kv(self.config["Kernel"]["Patch"], "Identifier", "com.apple.driver.AppleSMC")["Enabled"] = True
         support.BuildSupport(self.model, self.constants, self.config).enable_kext("SMC-Spoof.kext", self.constants.smcspoof_version, self.constants.smcspoof_path)
 
-        # Sequoia installer checks hardware compatibility and refuses to proceed
-        # silently (gray screen hang) on unsupported T2 Macs. This bypasses it.
-        # -v forces verbose mode so boot failures are visible instead of a silent gray screen.
-        # rddelay=5 gives the USB stack 5 extra seconds to enumerate the installer drive
-        # before the kernel gives up with "Still waiting for root device".
-        # amfi_get_out_of_my_way=0x1 allows the installer to write to and format the T2-managed
-        # internal SSD — Moderate spoof boots but lacks this so disk operations are blocked.
-        logging.info("- Enabling WhateverGreen for T2 Mac iGPU Metal support")
-        if not support.BuildSupport(self.model, self.constants, self.config).get_kext_by_bundle_path("WhateverGreen.kext")["Enabled"] is True:
-            support.BuildSupport(self.model, self.constants, self.config).enable_kext("WhateverGreen.kext", self.constants.whatevergreen_version, self.constants.whatevergreen_path)
-
+        # Intel UHD 617 (Amber Lake) is natively supported by Sequoia's
+        # AppleIntelKBLGraphicsFramebuffer — WEG is not needed and in fact
+        # causes IOAcceleratorFamily2 to deadlock during Metal init on this model.
+        # Moderate spoof (which boots the installer successfully) does not inject WEG.
         logging.info("- Adding -no_compat_check -v rddelay=5 amfi_get_out_of_my_way=0x1 for T2 Mac Sequoia installer")
         self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -no_compat_check -v rddelay=5 amfi_get_out_of_my_way=0x1"
 
