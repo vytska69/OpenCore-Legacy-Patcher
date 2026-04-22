@@ -10,11 +10,12 @@
 > **🚧 Not ready for general use** — the installer does not fully boot yet.
 
 **Progress:**
-- [x] USB installer drive is detected ✓ fixed
+- [x] USB installer drive is detected
 - [ ] Installer boots to the setup screen
 - [ ] macOS installs and runs normally
 
 **Known issues:**
+- ~~Installer stuck on boot — USB drive not detected~~ fixed
 - Installer gets stuck during boot — hangs at GPU initialisation (IOAcceleratorFamily2). Under investigation.
 
 **Note:** These changes are entirely independent of the official OpenCore Legacy Patcher project and its developers. If you are not in a hurry, consider waiting for the official **OCLP 3.0.0** release from [Dortania](https://github.com/dortania/OpenCore-Legacy-Patcher), which may include proper T2 support. If you use or build upon the changes in this fork, please give credit.
