@@ -436,6 +436,13 @@ class BuildMiscellaneous:
         self.config["Misc"]["Debug"]["Target"] = self.config["Misc"]["Debug"]["Target"] | 0x08
         self.config["Misc"]["Debug"]["SysReport"] = True
 
+        # AMFIPass is normally only injected for Macs whose Max OS is below Sonoma.
+        # T2 Macs (Max OS = Sonoma) need it explicitly for Sequoia because AMFI on
+        # Sequoia rejects Lilu plugin kexts (WhateverGreen, DebugEnhancer, etc.)
+        # without this early AMFI bypass, causing a silent hang during kext init.
+        logging.info("- Enabling AMFIPass for T2 Mac Sequoia kext injection")
+        support.BuildSupport(self.model, self.constants, self.config).enable_kext("AMFIPass.kext", self.constants.amfipass_version, self.constants.amfipass_path)
+
         # After ~20 SEP mailbox timeouts AppleSEPManagerIntel panics with:
         # "AppleSEPManager panic for 'AppleKeyStore': sks request timeout"
         # Patch converts the panic call to an early return (MinKernel=24.0.0 scopes it to Sequoia only).
