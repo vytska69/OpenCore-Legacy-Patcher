@@ -10,7 +10,7 @@
 > **🚧 Not ready for general use** — the installer does not fully boot yet.
 
 **Progress:**
-- [x] USB installer drive is detected
+- [x] USB installer drive is detected ✓ fixed
 - [ ] Installer boots to the setup screen
 - [ ] macOS installs and runs normally
 
