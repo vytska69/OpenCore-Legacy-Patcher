@@ -426,8 +426,8 @@ class BuildMiscellaneous:
         # Sequoia installer checks hardware compatibility and refuses to proceed
         # silently (gray screen hang) on unsupported T2 Macs. This bypasses it.
         # -v forces verbose mode so boot failures are visible instead of a silent gray screen.
-        logging.info("- Adding -no_compat_check -v for T2 Mac Sequoia installer")
-        self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -no_compat_check -v"
+        logging.info("- Adding -no_compat_check -v kextlog=0xfff for T2 Mac Sequoia installer")
+        self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -no_compat_check -v kextlog=0xfff"
 
         # Write OpenCore boot log and panic reports to the EFI partition so they can be
         # read from another OS after a failed boot.  SysReport captures kernel panics;
@@ -435,6 +435,15 @@ class BuildMiscellaneous:
         logging.info("- Enabling OC file logging and SysReport for T2 Mac debugging")
         self.config["Misc"]["Debug"]["Target"] = self.config["Misc"]["Debug"]["Target"] | 0x08
         self.config["Misc"]["Debug"]["SysReport"] = True
+
+        # PanicNoKextDump strips kext list from panic logs; disable it so the panic log
+        # shows which kext was loaded/running when the system crashed.
+        # PowerTimeoutKernelPanic converts power-management hangs (e.g. SEP/IOKit
+        # timeouts) into kernel panics, which ARE written to NVRAM and captured by
+        # SysReport on the next boot — turning a silent infinite hang into a diagnosable log.
+        logging.info("- Enabling full kext info in panic logs and power-timeout panic for T2 Mac")
+        self.config["Kernel"]["Quirks"]["PanicNoKextDump"] = False
+        self.config["Kernel"]["Quirks"]["PowerTimeoutKernelPanic"] = True
 
         # AMFIPass is normally only injected for Macs whose Max OS is below Sonoma.
         # T2 Macs (Max OS = Sonoma) need it explicitly for Sequoia because AMFI on
