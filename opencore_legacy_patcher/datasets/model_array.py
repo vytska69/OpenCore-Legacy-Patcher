@@ -325,6 +325,8 @@ Missing_USB_Map = [
     "MacPro4,1",
     "Xserve2,1",
     "Xserve3,1",
+    "MacBookAir8,1",
+    "MacBookAir8,2",
 ]
 
 Missing_USB_Map_Ventura = [
