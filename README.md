@@ -15,7 +15,7 @@
 - [ ] macOS installs and runs normally
 
 **Known issues:**
-- Installer hangs at startup with "Still waiting for root device" — USB drive is not found by the OS in time. Fix in progress.
+- Installer gets stuck on the Apple logo — possibly caused by a USB detection issue, under investigation.
 
 A Python-based project revolving around [Acidanthera's OpenCorePkg](https://github.com/acidanthera/OpenCorePkg) and [Lilu](https://github.com/acidanthera/Lilu) for both running and unlocking features in macOS on supported and unsupported Macs.
 
