@@ -17,6 +17,8 @@
 **Known issues:**
 - Installer gets stuck on the Apple logo — possibly caused by a USB detection issue, under investigation.
 
+**Note:** These changes are entirely independent of the official OpenCore Legacy Patcher project and its developers. If you are not in a hurry, consider waiting for the official **OCLP 3.0.0** release from [Dortania](https://github.com/dortania/OpenCore-Legacy-Patcher), which may include proper T2 support. If you use or build upon the changes in this fork, please give credit.
+
 A Python-based project revolving around [Acidanthera's OpenCorePkg](https://github.com/acidanthera/OpenCorePkg) and [Lilu](https://github.com/acidanthera/Lilu) for both running and unlocking features in macOS on supported and unsupported Macs.
 
 Our project's main goal is to breathe new life into Macs no longer supported by Apple, allowing for the installation and usage of macOS Big Sur and newer on machines as old as 2007.
