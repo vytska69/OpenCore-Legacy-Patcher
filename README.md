@@ -3,15 +3,19 @@
              <h1>OpenCore Legacy Patcher</h1>
 </div>
 
-> **⚠️ EXPERIMENTAL FORK** — This is an experimental fork of [Dortania's OpenCore Legacy Patcher](https://github.com/dortania/OpenCore-Legacy-Patcher) that attempts to add **T2 Mac support** (MacBook Air 2018/2019). These changes are **not** officially supported and may cause kernel panics or other issues. Use at your own risk.
+> **⚠️ EXPERIMENTAL FORK** — Adds **macOS Sequoia support for MacBook Air 2018/2019 (T2)**. Not officially supported. Use at your own risk.
 
-## T2 Mac Support — Status & TODO
+## T2 Mac Support (MacBook Air 2018 / 2019)
 
-> **🚧 Work in progress — not ready for general use.**
+> **🚧 Not ready for general use** — the installer does not fully boot yet.
 
-- [x] USB boot
-- [ ] Installer boots
-- [ ] Post-install + full OS usability
+**Progress:**
+- [x] USB installer drive is detected
+- [ ] Installer boots to the setup screen
+- [ ] macOS installs and runs normally
+
+**Known issues:**
+- Installer hangs at startup with "Still waiting for root device" — USB drive is not found by the OS in time. Fix in progress.
 
 A Python-based project revolving around [Acidanthera's OpenCorePkg](https://github.com/acidanthera/OpenCorePkg) and [Lilu](https://github.com/acidanthera/Lilu) for both running and unlocking features in macOS on supported and unsupported Macs.
 
