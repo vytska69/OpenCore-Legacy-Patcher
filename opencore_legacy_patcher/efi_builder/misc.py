@@ -426,8 +426,10 @@ class BuildMiscellaneous:
         # Sequoia installer checks hardware compatibility and refuses to proceed
         # silently (gray screen hang) on unsupported T2 Macs. This bypasses it.
         # -v forces verbose mode so boot failures are visible instead of a silent gray screen.
-        logging.info("- Adding -no_compat_check -v kextlog=0xfff for T2 Mac Sequoia installer")
-        self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -no_compat_check -v kextlog=0xfff"
+        # rddelay=5 gives the USB stack 5 extra seconds to enumerate the installer drive
+        # before the kernel gives up with "Still waiting for root device".
+        logging.info("- Adding -no_compat_check -v kextlog=0xfff rddelay=5 for T2 Mac Sequoia installer")
+        self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -no_compat_check -v kextlog=0xfff rddelay=5"
 
         # Write OpenCore boot log and panic reports to the EFI partition so they can be
         # read from another OS after a failed boot.  SysReport captures kernel panics;
