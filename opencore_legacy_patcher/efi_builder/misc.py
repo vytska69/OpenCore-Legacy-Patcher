@@ -425,8 +425,16 @@ class BuildMiscellaneous:
         # -v forces verbose mode so boot failures are visible instead of a silent gray screen.
         # rddelay=5 gives the USB stack 5 extra seconds to enumerate the installer drive
         # before the kernel gives up with "Still waiting for root device".
-        logging.info("- Adding -no_compat_check -v rddelay=5 amfi_get_out_of_my_way=0x1 for T2 Mac Sequoia installer")
-        self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -no_compat_check -v rddelay=5 amfi_get_out_of_my_way=0x1"
+        # WhateverGreen is needed for Intel UHD 617 Metal initialisation — without it
+        # WindowServer hangs at 100% progress (Metal stack fails to start).
+        # igfxonln=1 forces the iGPU online before WEG applies its hooks, preventing
+        # the IOAcceleratorFamily2 deadlock seen when WEG patches the framebuffer driver.
+        logging.info("- Enabling WhateverGreen for T2 Mac iGPU Metal support")
+        if not support.BuildSupport(self.model, self.constants, self.config).get_kext_by_bundle_path("WhateverGreen.kext")["Enabled"] is True:
+            support.BuildSupport(self.model, self.constants, self.config).enable_kext("WhateverGreen.kext", self.constants.whatevergreen_version, self.constants.whatevergreen_path)
+
+        logging.info("- Adding -no_compat_check -v rddelay=5 amfi_get_out_of_my_way=0x1 igfxonln=1 for T2 Mac Sequoia installer")
+        self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -no_compat_check -v rddelay=5 amfi_get_out_of_my_way=0x1 igfxonln=1"
 
         # Write OpenCore boot log and panic reports to the EFI partition so they can be
         # read from another OS after a failed boot.  SysReport captures kernel panics;
