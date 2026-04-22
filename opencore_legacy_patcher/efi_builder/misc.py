@@ -425,8 +425,9 @@ class BuildMiscellaneous:
 
         # Sequoia installer checks hardware compatibility and refuses to proceed
         # silently (gray screen hang) on unsupported T2 Macs. This bypasses it.
-        logging.info("- Adding -no_compat_check for T2 Mac Sequoia installer")
-        self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -no_compat_check"
+        # -v forces verbose mode so boot failures are visible instead of a silent gray screen.
+        logging.info("- Adding -no_compat_check -v for T2 Mac Sequoia installer")
+        self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -no_compat_check -v"
 
         # After ~20 SEP mailbox timeouts AppleSEPManagerIntel panics with:
         # "AppleSEPManager panic for 'AppleKeyStore': sks request timeout"
