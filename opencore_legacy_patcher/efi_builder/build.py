@@ -63,8 +63,9 @@ class BuildOpenCore:
         # T2 Macs need the DEBUG OpenCore build so file logging works (RELEASE strips it).
         # Must be set before _generate_base() selects the OpenCore ZIP.
         if self.model in ["MacBookAir8,1", "MacBookAir8,2"]:
-            logging.info("- Forcing DEBUG OpenCore for T2 Mac file logging support")
+            logging.info("- Forcing DEBUG OpenCore + kext debug for T2 Mac diagnostics")
             self.constants.opencore_debug = True
+            self.constants.kext_debug = True
 
         self._generate_base()
         self._set_revision()
