@@ -9,15 +9,13 @@
 
 > **🚧 Work in progress — not ready for general use.**
 
-| Change | Status |
-|--------|--------|
-| USB boot (BOOTx64.efi layout, bless) | ✅ Done |
-| T2 kext injection (iBridged, WhateverGreen, AMFIPass) | ✅ Done |
-| Boot args + OC logging + panic improvements | ✅ Done |
-| XhciDxe.efi + UsbBusDxe.efi for USB detection | ✅ Done |
-| USB-Map.kext for MacBookAir8,1 / 8,2 | ❌ Pending |
-| Installer boots successfully | ❌ Not verified |
-| Post-install + full OS usability | ❌ Not tested |
+- [x] USB boot
+- [x] T2 kext injection
+- [x] Boot args, OC logging, panic improvements
+- [x] XhciDxe.efi + UsbBusDxe.efi
+- [ ] USB-Map.kext (MacBookAir8,1 / 8,2)
+- [ ] Installer boots
+- [ ] Post-install + full OS usability
 
 A Python-based project revolving around [Acidanthera's OpenCorePkg](https://github.com/acidanthera/OpenCorePkg) and [Lilu](https://github.com/acidanthera/Lilu) for both running and unlocking features in macOS on supported and unsupported Macs.
 
