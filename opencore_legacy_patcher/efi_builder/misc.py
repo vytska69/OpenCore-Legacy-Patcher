@@ -436,22 +436,6 @@ class BuildMiscellaneous:
         logging.info("- Adding -no_compat_check -v rddelay=5 amfi_get_out_of_my_way=0x1 -igfxvesa for T2 Mac Sequoia installer")
         self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -no_compat_check -v rddelay=5 amfi_get_out_of_my_way=0x1 -igfxvesa"
 
-        # Write OpenCore boot log and panic reports to the EFI partition so they can be
-        # read from another OS after a failed boot.  SysReport captures kernel panics;
-        # Target bit 3 (0x08) adds file logging on top of the existing console+serial bits.
-        logging.info("- Enabling OC file logging and SysReport for T2 Mac debugging")
-        self.config["Misc"]["Debug"]["Target"] = self.config["Misc"]["Debug"]["Target"] | 0x08
-        self.config["Misc"]["Debug"]["SysReport"] = True
-
-        # PanicNoKextDump strips kext list from panic logs; disable it so the panic log
-        # shows which kext was loaded/running when the system crashed.
-        # PowerTimeoutKernelPanic converts power-management hangs (e.g. SEP/IOKit
-        # timeouts) into kernel panics, which ARE written to NVRAM and captured by
-        # SysReport on the next boot — turning a silent infinite hang into a diagnosable log.
-        logging.info("- Enabling full kext info in panic logs and power-timeout panic for T2 Mac")
-        self.config["Kernel"]["Quirks"]["PanicNoKextDump"] = False
-        self.config["Kernel"]["Quirks"]["PowerTimeoutKernelPanic"] = True
-
         # T2 Macs boot from USB-C ports that are behind the Thunderbolt/XHCI stack.
         # T2's EFI may not fully hand off the XHCI controller state to OpenCore, so
         # the kernel never sees the USB installer drive → "Still waiting for root device".
