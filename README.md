@@ -10,10 +10,6 @@
 > **🚧 Work in progress — not ready for general use.**
 
 - [x] USB boot
-- [x] T2 kext injection
-- [x] Boot args, OC logging, panic improvements
-- [x] XhciDxe.efi + UsbBusDxe.efi
-- [ ] USB-Map.kext (MacBookAir8,1 / 8,2)
 - [ ] Installer boots
 - [ ] Post-install + full OS usability
 
