@@ -425,8 +425,8 @@ class BuildMiscellaneous:
         # -v forces verbose mode so boot failures are visible instead of a silent gray screen.
         # rddelay=5 gives the USB stack 5 extra seconds to enumerate the installer drive
         # before the kernel gives up with "Still waiting for root device".
-        logging.info("- Adding -no_compat_check -v rddelay=5 for T2 Mac Sequoia installer")
-        self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -no_compat_check -v rddelay=5"
+        logging.info("- Adding -no_compat_check -v rddelay=5 amfi_get_out_of_my_way=0x1 for T2 Mac Sequoia installer")
+        self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -no_compat_check -v rddelay=5 amfi_get_out_of_my_way=0x1"
 
         # Write OpenCore boot log and panic reports to the EFI partition so they can be
         # read from another OS after a failed boot.  SysReport captures kernel panics;
