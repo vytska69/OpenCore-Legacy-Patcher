@@ -447,6 +447,18 @@ class BuildMiscellaneous:
         self.config["Kernel"]["Quirks"]["PanicNoKextDump"] = False
         self.config["Kernel"]["Quirks"]["PowerTimeoutKernelPanic"] = True
 
+        # T2 Macs boot from USB-C ports that are behind the Thunderbolt/XHCI stack.
+        # T2's EFI may not fully hand off the XHCI controller state to OpenCore, so
+        # the kernel never sees the USB installer drive → "Still waiting for root device".
+        # XhciDxe.efi re-initialises the XHCI controller at the UEFI stage and
+        # UsbBusDxe.efi provides the USB bus protocol, ensuring the controller is
+        # connected before ExitBootServices so the kernel can find the root device.
+        logging.info("- Adding XhciDxe.efi and UsbBusDxe.efi for T2 Mac USB root device fix")
+        shutil.copy(self.constants.xhci_driver_path, self.constants.drivers_path)
+        shutil.copy(self.constants.usb_bus_driver_path, self.constants.drivers_path)
+        support.BuildSupport(self.model, self.constants, self.config).get_efi_binary_by_path("XhciDxe.efi", "UEFI", "Drivers")["Enabled"] = True
+        support.BuildSupport(self.model, self.constants, self.config).get_efi_binary_by_path("UsbBusDxe.efi", "UEFI", "Drivers")["Enabled"] = True
+
         # AMFIPass is normally only injected for Macs whose Max OS is below Sonoma.
         # T2 Macs (Max OS = Sonoma) need it explicitly for Sequoia because AMFI on
         # Sequoia rejects Lilu plugin kexts (WhateverGreen, DebugEnhancer, etc.)
