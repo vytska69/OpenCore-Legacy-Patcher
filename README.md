@@ -7,38 +7,17 @@
 
 ## T2 Mac Support — Status & TODO
 
-> **🚧 DO NOT USE until items marked ✅ TESTED are confirmed working on real hardware.**
-> Every item below is implemented but not all have been verified on a physical MacBook Air 2018/2019.
-> Changes that are not yet marked as tested may break booting entirely.
+> **🚧 Work in progress — not ready for general use.**
 
-| # | Change | Status |
-|---|--------|--------|
-| 1 | BOOTx64.efi layout + bless for USB boot | ✅ Implemented |
-| 2 | iBridged.kext — BridgeOS coprocessor version injection | ✅ Implemented |
-| 3 | WhateverGreen — Intel iGPU rendering fix | ✅ Implemented |
-| 4 | AMFIPass — allow Lilu plugin kexts under Sequoia AMFI | ✅ Implemented |
-| 5 | `-no_compat_check` — bypass Sequoia hardware check | ✅ Implemented |
-| 6 | OC file logging + SysReport — write boot/panic logs to EFI partition | ✅ Implemented |
-| 7 | `kextlog=0xfff` — verbose kext loading in boot output | ✅ Implemented |
-| 8 | `PanicNoKextDump=false` + `PowerTimeoutKernelPanic=true` — better panic logs | ✅ Implemented |
-| 9 | AppleSEPManager SEP timeout panic patch | ✅ Implemented |
-| 10 | `rddelay=5` — extra time for USB root device detection | ✅ Implemented |
-| 11 | XhciDxe.efi + UsbBusDxe.efi — UEFI XHCI re-init before kernel | ✅ Implemented |
-| 12 | USB-Map.kext for MacBookAir8,1 / MacBookAir8,2 | ❌ **Blocked** — needs `ioreg` dump from real hardware running Sonoma |
-| 13 | Installer boots to desktop | ❌ **Not yet verified** — "Still waiting for root device" still occurs; likely fixed by #12 |
-| 14 | Post-install root patching works | ❌ Not tested |
-| 15 | macOS fully usable (Wi-Fi, BT, Touch ID, sleep) | ❌ Not tested |
-
-### Getting the missing USB map data (item #12)
-
-Boot the MacBook Air 2018 or 2019 on **macOS Sonoma** and run:
-
-```bash
-ioreg -l -p IOService -k UsbConnector -r > ~/Desktop/ioreg_usb.txt
-ioreg -l -p IOService -c AppleUSBXHCI    > ~/Desktop/ioreg_xhci.txt
-```
-
-Open an issue and attach both files. Once the port topology is known, a proper `MacBookAir8,1` entry can be added to `payloads/Kexts/Plists/AppleUSBMaps/Info.plist`.
+| Change | Status |
+|--------|--------|
+| USB boot (BOOTx64.efi layout, bless) | ✅ Done |
+| T2 kext injection (iBridged, WhateverGreen, AMFIPass) | ✅ Done |
+| Boot args + OC logging + panic improvements | ✅ Done |
+| XhciDxe.efi + UsbBusDxe.efi for USB detection | ✅ Done |
+| USB-Map.kext for MacBookAir8,1 / 8,2 | ❌ Pending |
+| Installer boots successfully | ❌ Not verified |
+| Post-install + full OS usability | ❌ Not tested |
 
 A Python-based project revolving around [Acidanthera's OpenCorePkg](https://github.com/acidanthera/OpenCorePkg) and [Lilu](https://github.com/acidanthera/Lilu) for both running and unlocking features in macOS on supported and unsupported Macs.
 
