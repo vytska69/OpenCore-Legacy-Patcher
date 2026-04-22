@@ -429,6 +429,13 @@ class BuildMiscellaneous:
         logging.info("- Adding -no_compat_check -v for T2 Mac Sequoia installer")
         self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -no_compat_check -v"
 
+        # Write OpenCore boot log and panic reports to the EFI partition so they can be
+        # read from another OS after a failed boot.  SysReport captures kernel panics;
+        # Target bit 3 (0x08) adds file logging on top of the existing console+serial bits.
+        logging.info("- Enabling OC file logging and SysReport for T2 Mac debugging")
+        self.config["Misc"]["Debug"]["Target"] = self.config["Misc"]["Debug"]["Target"] | 0x08
+        self.config["Misc"]["Debug"]["SysReport"] = True
+
         # After ~20 SEP mailbox timeouts AppleSEPManagerIntel panics with:
         # "AppleSEPManager panic for 'AppleKeyStore': sks request timeout"
         # Patch converts the panic call to an early return (MinKernel=24.0.0 scopes it to Sequoia only).
