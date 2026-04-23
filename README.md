@@ -7,16 +7,17 @@
 
 ## T2 Mac Support (MacBook Air 2018 / 2019)
 
-> **🚧 Not ready for general use** — the installer does not fully boot yet.
+> **🚧 Not ready for general use** — installer boot is unblocked but end-to-end install is untested.
 
 **Progress:**
 - [x] USB installer drive is detected
-- [ ] Installer boots to the setup screen
+- [x] Installer boots past GPU initialisation
+- [ ] Installer reaches the setup screen
 - [ ] macOS installs and runs normally
 
 **Known issues:**
 - ~~Installer stuck on boot — USB drive not detected~~ fixed
-- Installer gets stuck during boot — hangs at GPU initialisation (IOAcceleratorFamily2). Under investigation.
+- ~~Installer hangs at GPU initialisation (IOAcceleratorFamily2)~~ fixed — WhateverGreen was deadlocking IOAcceleratorFamily2 during Metal init; Intel UHD 617 is natively supported and does not need WEG.
 
 **Note:** These changes are entirely independent of the official OpenCore Legacy Patcher project and its developers. If you are not in a hurry, consider waiting for the official **OCLP 3.0.0** release from [Dortania](https://github.com/dortania/OpenCore-Legacy-Patcher), which may include proper T2 support. If you use or build upon the changes in this fork, please give credit.
 
