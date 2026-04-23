@@ -415,18 +415,33 @@ class BuildMiscellaneous:
         logging.info("- Enabling T2 BridgeOS coprocessor version injection")
         support.BuildSupport(self.model, self.constants, self.config).enable_kext("iBridged.kext", self.constants.ibridged_version, self.constants.ibridged_path)
 
-        # SMC-Spoof.kext + AppleSMC patch replaces the Board ID exemption patch.
-        # Moderate spoof uses this approach and it allows the installer to boot fully —
-        # the Board ID patch alone (used with serial_settings=None) doesn't suffice for T2 Macs.
+        # SMC-Spoof.kext + AppleSMC patch: makes the SMC report a spoofed model string
+        # so the Sequoia compatibility check doesn't reject the machine based on SMC data.
         logging.info("- Enabling SMC-Spoof for T2 Mac installer boot")
         support.BuildSupport(self.model, self.constants, self.config).get_item_by_kv(self.config["Kernel"]["Patch"], "Identifier", "com.apple.driver.AppleSMC")["Enabled"] = True
         support.BuildSupport(self.model, self.constants, self.config).enable_kext("SMC-Spoof.kext", self.constants.smcspoof_version, self.constants.smcspoof_path)
 
-        # Intel UHD 617 (Amber Lake) is natively supported by Sequoia's
-        # AppleIntelKBLGraphicsFramebuffer — WEG is not needed and in fact
-        # causes IOAcceleratorFamily2 to deadlock during Metal init on this model.
-        # Moderate spoof (which boots the installer successfully) does not inject WEG.
-        logging.info("- Adding -no_compat_check -v rddelay=5 amfi_get_out_of_my_way=0x1 for T2 Mac Sequoia installer")
+        # Spoof SMBIOS to MacBookPro15,2 — same Coffee Lake Intel UHD 617, same T2 generation,
+        # but supported by Sequoia. Without a supported SMBIOS, Sequoia's
+        # AppleIntelKBLGraphicsFramebuffer lacks the framebuffer entry for MacBookAir8,x and
+        # GPU init hangs at boot. MacBookPro15,2 has the identical GPU connector layout (13"
+        # Retina, 2 TB3 ports) so the framebuffer config is fully compatible.
+        # WEG is re-enabled here because with a supported SMBIOS the Metal stack initialises
+        # correctly and the IOAcceleratorFamily2 deadlock we saw with MBA8,1 SMBIOS does not occur.
+        logging.info("- Spoofing SMBIOS to MacBookPro15,2 for Sequoia GPU framebuffer compatibility")
+        self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["run-efi-updater"] = "No"
+        self.config["PlatformInfo"]["Automatic"] = True
+        self.config["PlatformInfo"]["UpdateDataHub"] = True
+        self.config["PlatformInfo"]["UpdateNVRAM"] = True
+        self.config["PlatformInfo"]["UpdateSMBIOS"] = True
+        self.config["UEFI"]["ProtocolOverrides"]["DataHub"] = True
+        self.config["PlatformInfo"]["Generic"]["SystemProductName"] = "MacBookPro15,2"
+
+        logging.info("- Enabling WhateverGreen for Intel UHD 617 framebuffer injection")
+        if not support.BuildSupport(self.model, self.constants, self.config).get_kext_by_bundle_path("WhateverGreen.kext")["Enabled"] is True:
+            support.BuildSupport(self.model, self.constants, self.config).enable_kext("WhateverGreen.kext", self.constants.whatevergreen_version, self.constants.whatevergreen_path)
+
+        logging.info("- Adding boot args for T2 Mac Sequoia installer")
         self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -no_compat_check -v rddelay=5 amfi_get_out_of_my_way=0x1"
 
         # T2 Macs boot from USB-C ports that are behind the Thunderbolt/XHCI stack.
