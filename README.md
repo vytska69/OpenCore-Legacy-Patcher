@@ -19,7 +19,7 @@
 - ~~Installer stuck on boot — USB drive not detected~~ fixed
 - ~~Installer hangs at GPU initialisation (IOAcceleratorFamily2)~~ fixed — WhateverGreen was deadlocking IOAcceleratorFamily2 during Metal init; Intel UHD 617 is natively supported and does not need WEG.
 
-**Note:** These changes are entirely independent of the official OpenCore Legacy Patcher project and its developers. If you are not in a hurry, consider waiting for the official **OCLP 3.0.0** release from [Dortania](https://github.com/dortania/OpenCore-Legacy-Patcher), which may include proper T2 support. If you use or build upon the changes in this fork, please give credit.
+**Note:** These changes are entirely independent of the official OpenCore Legacy Patcher project and its developers. If you are not in a hurry, consider waiting for the official **OCLP 3.0.0** release from [Dortania](https://github.com/dortania/OpenCore-Legacy-Patcher), which may include proper T2 support. **If you use or build upon the changes in this fork, you must credit [@vytska69](https://github.com/vytska69) and link to this repository.** Copying commits or code without attribution is a violation of the BSD licence under which this fork is distributed.
 
 A Python-based project revolving around [Acidanthera's OpenCorePkg](https://github.com/acidanthera/OpenCorePkg) and [Lilu](https://github.com/acidanthera/Lilu) for both running and unlocking features in macOS on supported and unsupported Macs.
 
