@@ -421,28 +421,17 @@ class BuildMiscellaneous:
         support.BuildSupport(self.model, self.constants, self.config).get_item_by_kv(self.config["Kernel"]["Patch"], "Identifier", "com.apple.driver.AppleSMC")["Enabled"] = True
         support.BuildSupport(self.model, self.constants, self.config).enable_kext("SMC-Spoof.kext", self.constants.smcspoof_version, self.constants.smcspoof_path)
 
-        # Spoof SMBIOS to MacBookPro15,2 — same Coffee Lake Intel UHD 617, same T2 generation,
-        # but supported by Sequoia. Without a supported SMBIOS, Sequoia's
-        # AppleIntelKBLGraphicsFramebuffer lacks the framebuffer entry for MacBookAir8,x and
-        # GPU init hangs at boot. MacBookPro15,2 has the identical GPU connector layout (13"
-        # Retina, 2 TB3 ports) so the framebuffer config is fully compatible.
-        # WEG is re-enabled here because with a supported SMBIOS the Metal stack initialises
-        # correctly and the IOAcceleratorFamily2 deadlock we saw with MBA8,1 SMBIOS does not occur.
-        logging.info("- Spoofing SMBIOS to MacBookPro15,2 for Sequoia GPU framebuffer compatibility")
-        self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["run-efi-updater"] = "No"
-        self.config["PlatformInfo"]["Automatic"] = True
-        self.config["PlatformInfo"]["UpdateDataHub"] = True
-        self.config["PlatformInfo"]["UpdateNVRAM"] = True
-        self.config["PlatformInfo"]["UpdateSMBIOS"] = True
-        self.config["UEFI"]["ProtocolOverrides"]["DataHub"] = True
-        self.config["PlatformInfo"]["Generic"]["SystemProductName"] = "MacBookPro15,2"
-
+        # WEG injects the missing MBA8,1 framebuffer entry into Sequoia's
+        # AppleIntelKBLGraphicsFramebuffer (Apple dropped it when MBA8,1 was dropped from Sequoia).
+        # igfxfw=2 forces Apple GUC firmware loading, which changes the Metal init sequence and
+        # prevents the IOAcceleratorFamily2 deadlock seen without it.
+        # igfxonln=1 keeps the iGPU online before WEG applies its framebuffer patches.
         logging.info("- Enabling WhateverGreen for Intel UHD 617 framebuffer injection")
         if not support.BuildSupport(self.model, self.constants, self.config).get_kext_by_bundle_path("WhateverGreen.kext")["Enabled"] is True:
             support.BuildSupport(self.model, self.constants, self.config).enable_kext("WhateverGreen.kext", self.constants.whatevergreen_version, self.constants.whatevergreen_path)
 
         logging.info("- Adding boot args for T2 Mac Sequoia installer")
-        self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -no_compat_check -v rddelay=5 amfi_get_out_of_my_way=0x1"
+        self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -no_compat_check -v rddelay=5 amfi_get_out_of_my_way=0x1 igfxfw=2 igfxonln=1"
 
         # T2 Macs boot from USB-C ports that are behind the Thunderbolt/XHCI stack.
         # T2's EFI may not fully hand off the XHCI controller state to OpenCore, so
