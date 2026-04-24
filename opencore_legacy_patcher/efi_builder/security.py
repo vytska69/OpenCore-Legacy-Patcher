@@ -91,3 +91,17 @@ class BuildSecurity:
         if smbios_data.smbios_dictionary[self.model]["Max OS Supported"] < os_data.os_data.sonoma:
             logging.info("- Enabling AMFIPass")
             support.BuildSupport(self.model, self.constants, self.config).enable_kext("AMFIPass.kext", self.constants.amfipass_version, self.constants.amfipass_path)
+
+        # T2 Macs are native Sequoia machines.  When SecureBootModel is "Disabled"
+        # (the OCLP default for unsupported Macs) the T2's SEP has no model context
+        # and AppleSEPManager times out after ~20 retries → "sks request timeout".
+        # Setting the correct hardware identifier tells the T2 firmware which Apple
+        # Secure Boot policy to use; with T2 configured to "No Security" in Startup
+        # Security Utility the T2 hardware does not enforce the chain itself, so this
+        # is safe and may allow the SEP to respond to AppleKeyStore requests.
+        if self.model == "MacBookAir8,1":
+            logging.info("- Overriding SecureBootModel to j140k for T2 Mac SEP communication")
+            self.config["Misc"]["Security"]["SecureBootModel"] = "j140k"
+        elif self.model == "MacBookAir8,2":
+            logging.info("- Overriding SecureBootModel to j140a for T2 Mac SEP communication")
+            self.config["Misc"]["Security"]["SecureBootModel"] = "j140a"
