@@ -431,7 +431,7 @@ class BuildMiscellaneous:
             support.BuildSupport(self.model, self.constants, self.config).enable_kext("WhateverGreen.kext", self.constants.whatevergreen_version, self.constants.whatevergreen_path)
 
         logging.info("- Adding boot args for T2 Mac Sequoia installer")
-        self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -no_compat_check -v rddelay=5 amfi_get_out_of_my_way=0x1 igfxfw=2 igfxonln=1"
+        self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -no_compat_check -v rddelay=5 amfi=0x80"
 
         # T2 Macs boot from USB-C ports that are behind the Thunderbolt/XHCI stack.
         # T2's EFI may not fully hand off the XHCI controller state to OpenCore, so
