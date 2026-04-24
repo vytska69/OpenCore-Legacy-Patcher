@@ -19,6 +19,25 @@
 - ~~Installer stuck on boot — USB drive not detected~~ fixed
 - ~~Installer hangs at GPU initialisation (IOAcceleratorFamily2)~~ fixed — WhateverGreen was deadlocking IOAcceleratorFamily2 during Metal init; Intel UHD 617 is natively supported and does not need WEG.
 
+**Research notes — T2 chip internals:**
+
+The T2 exposes four PCIe devices under RP01:
+
+| Device | Vendor:Device | Role |
+|--------|--------------|------|
+| ANS2   | 106B:2005    | NVMe (SSD) |
+| IOBC   | 106B:1801    | iBridge Communication — keyboard, trackpad, audio |
+| SEPM   | 106B:1802    | Secure Enclave Processor |
+| ADIO   | 106B:1803    | Audio I/O |
+
+Key findings from analysing the [t2linux `apple-bce` driver](https://github.com/t2linux/apple-bce) (the Linux T2 iBridge driver):
+
+- **IOBC ≠ SEP**: `apple-bce` drives IOBC (0x1801) for keyboard/trackpad/audio via a 64-bit mailbox on BAR 4. The Secure Enclave (0x1802) is an entirely separate device and driver.
+- **SEP timeout root cause**: macOS Sequoia's `AppleSEPManager` sends `AppleKeyStore` requests to the SEP on every boot. With `SecureBootModel = Disabled` (the OCLP default) the T2 firmware has no model context; the SEP never acknowledges and `AppleSEPManager` panics after ~20 retries: `"sks request timeout"`.
+- **Fix**: Setting `SecureBootModel` to `j140k` (MacBookAir8,1) / `j140a` (MacBookAir8,2) gives the T2 the boot-policy context it needs. With T2 in **No Security** mode the hardware does not enforce the chain, so this is safe for OCLP-patched systems.
+- **Intel UHD 617**: natively supported by Sequoia's `AppleIntelKBLGraphicsFramebuffer`; injecting WhateverGreen deadlocks `IOAcceleratorFamily2` during Metal init — WEG must be excluded for T2 Macs.
+- The DSDT already provides `apple-coprocessor-version` via the RP01 `_DSM` UUID `a0b5b7c6-…`; `iBridged.kext` is therefore redundant on hardware but kept for compatibility with non-ACPI paths.
+
 **Note:** These changes are entirely independent of the official OpenCore Legacy Patcher project and its developers. If you are not in a hurry, consider waiting for the official **OCLP 3.0.0** release from [Dortania](https://github.com/dortania/OpenCore-Legacy-Patcher), which may include proper T2 support. **If you use or build upon the changes in this fork, you must credit [@vytska69](https://github.com/vytska69) and link to this repository.** Copying commits or code without attribution is a violation of the BSD licence under which this fork is distributed.
 
 A Python-based project revolving around [Acidanthera's OpenCorePkg](https://github.com/acidanthera/OpenCorePkg) and [Lilu](https://github.com/acidanthera/Lilu) for both running and unlocking features in macOS on supported and unsupported Macs.
