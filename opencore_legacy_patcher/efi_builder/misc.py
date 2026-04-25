@@ -402,18 +402,14 @@ class BuildMiscellaneous:
         """
         T2 Security Chip Handler
 
-        MacBookAir8,1/8,2 natively support macOS Sequoia, so their built-in
-        T2 kexts (AppleSSE, AppleKeyStore, AppleCredentialManager) must NOT
-        be blocked or replaced.  T1 kexts communicate via USB/SPI and cannot
-        talk to the T2's PCIe/iBridge SEP; injecting them causes a silent hang
-        at the Apple logo.  The only OCLP-side change needed for T2 Macs is the
-        EFI/BOOT/BOOTx64.efi layout in install.py (handled there).
+        MacBookAir8,1/8,2 natively support macOS Sequoia.  The DSDT already
+        exposes apple-coprocessor-version via the RP01 _DSM; iBridged.kext is
+        NOT injected because it sets up a competing iBridge communication path
+        that conflicts with Apple's native T2 driver stack and causes an early
+        kernel panic before IOKit initialisation.
         """
         if self.model not in model_array.T2_MacBookAir:
             return
-
-        logging.info("- Enabling T2 BridgeOS coprocessor version injection")
-        support.BuildSupport(self.model, self.constants, self.config).enable_kext("iBridged.kext", self.constants.ibridged_version, self.constants.ibridged_path)
 
         # AAPL,ig-platform-id is NOT present in the IGPU _DSM (only hda-gfx is set).
         # bridgeOS EFI normally injects it at UEFI time, but OpenCore does not relay
@@ -465,26 +461,22 @@ class BuildMiscellaneous:
             "Prevent AppleSEPManager SEP timeout panic on T2 Macs (Sequoia)"
         )["Enabled"] = True
 
-        # Booter/Kernel quirks required for Amber Lake (T2) systems per Dortania's
-        # Coffee Lake Plus guide.  Not set elsewhere in OCLP since these Macs were
-        # never in the unsupported matrix before.
-        # PowerTimeoutKernelPanic: converts IOPMrootDomain power-management timeout
-        #   panics to recoveries — T2 manages power and may not respond in time.
-        # ProtectMemoryRegions: prevents macOS from writing to memory regions that
-        #   bridgeOS/T2 firmware has reserved.
-        # SyncRuntimePermissions: required for correct UEFI runtime service access
-        #   on modern (T2-era) Apple firmware.
+        # PowerTimeoutKernelPanic: converts IOPMrootDomain PM-timeout panics to
+        #   recoveries — T2 manages power and may not respond in time.
+        # ProtectMemoryRegions: prevents macOS from writing to memory regions
+        #   that bridgeOS/T2 firmware has reserved.
+        # SyncRuntimePermissions: required for correct UEFI runtime service
+        #   access on modern (T2-era) Apple firmware.
+        # NOTE: DisableIoMapper is intentionally NOT set.  macOS on native T2
+        #   Macs runs with VT-d/IOMMU active; Apple's T2 PCIe drivers set up
+        #   IOMMU domains for DMA isolation.  Removing the XNU IOMapper causes
+        #   those mappings to be absent → "DMA reply failed" → early panic
+        #   before IOKit initialises.  Linux's iommu=pt is pass-through (IOMMU
+        #   hardware active, 1:1 mappings) — NOT equivalent to DisableIoMapper.
         logging.info("- Enabling Booter/Kernel quirks for T2 Mac (Amber Lake)")
         self.config["Kernel"]["Quirks"]["PowerTimeoutKernelPanic"] = True
         self.config["Booter"]["Quirks"]["ProtectMemoryRegions"] = True
         self.config["Booter"]["Quirks"]["SyncRuntimePermissions"] = True
-        # Linux T2 kernels boot with iommu=pt (IOMMU pass-through): T2 uses 37-bit
-        # DMA and expects 1:1 physical address mapping rather than IOMMU translation.
-        # DisableIoMapper is the closest macOS equivalent — disables XNU's VT-d
-        # IOMapper which may otherwise remap DMA addresses the T2 PCIe devices
-        # (IOBC, SEPM, ANS2) cannot reach.
-        self.config["Kernel"]["Quirks"]["DisableIoMapper"] = True
-        logging.info("- Disabling IOMapper (VT-d) for T2 DMA compatibility")
 
         # T2 support is experimental — enable comprehensive boot logging so
         # failures can be diagnosed without attaching a serial debugger.
