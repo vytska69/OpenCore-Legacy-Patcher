@@ -467,19 +467,30 @@ class BuildMiscellaneous:
         #   that bridgeOS/T2 firmware has reserved.
         # SyncRuntimePermissions: required for correct UEFI runtime service
         #   access on modern (T2-era) Apple firmware.
-        # DisableIoMapper: Intel UHD 617 framebuffer needs unrestricted DMA
-        #   access to write verbose-boot text to the display.  With VT-d active
-        #   (DisableIoMapper=False) the iGPU framebuffer console DMA is blocked
-        #   and the kernel hangs silently at the Apple logo despite -v being set.
-        #   Note: the "DMA reply failed" messages seen in T2 PCIe communication
-        #   are unrelated — they come from the SEP/iBridge stack, not the iGPU,
-        #   and are handled by the SEP timeout panic patch.
+        # DisableIoMapper=False + DisableIoMapperMapping=True: IOMMU passthrough
+        #   mode — the IOMMU hardware stays active (giving T2 PCIe devices valid
+        #   DMA table entries so IOBC/SEPM mailbox DMA works), but every mapping
+        #   is 1:1 physical so the Intel UHD 617 framebuffer DMA is unrestricted.
+        #   This is the macOS equivalent of Linux's iommu=pt boot parameter used
+        #   by t2linux.  DisableIoMapper=True (previous setting) removed the XNU
+        #   IOMapper entirely, which prevented T2 PCIe DMA and caused the
+        #   "DMA reply failed" messages that broke SEP communication.
         logging.info("- Enabling Booter/Kernel quirks for T2 Mac (Amber Lake)")
         self.config["Kernel"]["Quirks"]["PowerTimeoutKernelPanic"] = True
         self.config["Booter"]["Quirks"]["ProtectMemoryRegions"] = True
         self.config["Booter"]["Quirks"]["SyncRuntimePermissions"] = True
-        self.config["Kernel"]["Quirks"]["DisableIoMapper"] = True
-        logging.info("- Disabling IOMapper (VT-d) for Intel UHD 617 framebuffer DMA")
+        self.config["Kernel"]["Quirks"]["DisableIoMapperMapping"] = True
+        logging.info("- Enabling IOMMU passthrough (DisableIoMapperMapping) for T2 DMA + framebuffer")
+
+        # Belt-and-suspenders: if the SEP still does not respond after IOMMU
+        # passthrough, delete the sep-booted NVRAM variable so AppleKeyStore
+        # sees _sep_enabled=0 and fast-fails all AKS requests immediately.
+        # Without this, the keybagd ioctl hangs forever (IOCommandGate never
+        # signalled), blocking the installer UI from appearing despite the
+        # progress bar reaching 100%.
+        if "sep-booted" not in self.config["NVRAM"]["Delete"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]:
+            self.config["NVRAM"]["Delete"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"] += ["sep-booted"]
+        logging.info("- Deleting sep-booted NVRAM var to fast-fail AKS if SEP is unresponsive")
 
         # T2 support is experimental — enable comprehensive boot logging so
         # failures can be diagnosed without attaching a serial debugger.
