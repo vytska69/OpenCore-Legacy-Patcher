@@ -421,15 +421,6 @@ class BuildMiscellaneous:
         support.BuildSupport(self.model, self.constants, self.config).get_item_by_kv(self.config["Kernel"]["Patch"], "Identifier", "com.apple.driver.AppleSMC")["Enabled"] = True
         support.BuildSupport(self.model, self.constants, self.config).enable_kext("SMC-Spoof.kext", self.constants.smcspoof_version, self.constants.smcspoof_path)
 
-        # WEG injects the missing MBA8,1 framebuffer entry into Sequoia's
-        # AppleIntelKBLGraphicsFramebuffer (Apple dropped it when MBA8,1 was dropped from Sequoia).
-        # igfxfw=2 forces Apple GUC firmware loading, which changes the Metal init sequence and
-        # prevents the IOAcceleratorFamily2 deadlock seen without it.
-        # igfxonln=1 keeps the iGPU online before WEG applies its framebuffer patches.
-        logging.info("- Enabling WhateverGreen for Intel UHD 617 framebuffer injection")
-        if not support.BuildSupport(self.model, self.constants, self.config).get_kext_by_bundle_path("WhateverGreen.kext")["Enabled"] is True:
-            support.BuildSupport(self.model, self.constants, self.config).enable_kext("WhateverGreen.kext", self.constants.whatevergreen_version, self.constants.whatevergreen_path)
-
         logging.info("- Adding boot args for T2 Mac Sequoia installer")
         self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -no_compat_check -v rddelay=5 amfi=0x80"
 
