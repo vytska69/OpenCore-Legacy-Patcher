@@ -5,7 +5,6 @@ model_array.py: Datasets for different models
 # MacBook Air models with T2 security chip (Amber Lake / Coffee Lake, macOS Sequoia target)
 T2_MacBookAir = [
     "MacBookAir8,1",
-    "MacBookAir8,1_v2",
     "MacBookAir8,2",
 ]
 
