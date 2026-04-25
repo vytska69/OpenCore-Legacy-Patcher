@@ -415,6 +415,18 @@ class BuildMiscellaneous:
         logging.info("- Enabling T2 BridgeOS coprocessor version injection")
         support.BuildSupport(self.model, self.constants, self.config).enable_kext("iBridged.kext", self.constants.ibridged_version, self.constants.ibridged_path)
 
+        # AAPL,ig-platform-id is NOT present in the IGPU _DSM (only hda-gfx is set).
+        # bridgeOS EFI normally injects it at UEFI time, but OpenCore does not relay
+        # EFI DeviceProperties set by T2 firmware.  Without this, Sequoia's
+        # AppleIntelKBLGraphicsFramebuffer initialises without a framebuffer config
+        # and the display pipeline stalls — Apple logo hang, no verbose output.
+        # 0x87C00005 = Intel UHD 617 (GT3e) MacBook Air variant, little-endian <05 00 C0 87>.
+        igpu_path = "PciRoot(0x0)/Pci(0x2,0x0)"
+        if igpu_path not in self.config["DeviceProperties"]["Add"]:
+            self.config["DeviceProperties"]["Add"][igpu_path] = {}
+        self.config["DeviceProperties"]["Add"][igpu_path]["AAPL,ig-platform-id"] = binascii.unhexlify("0500C087")
+        logging.info("- Injecting AAPL,ig-platform-id 0x87C00005 for Intel UHD 617")
+
         # SMC-Spoof.kext + AppleSMC patch: makes the SMC report a spoofed model string
         # so the Sequoia compatibility check doesn't reject the machine based on SMC data.
         logging.info("- Enabling SMC-Spoof for T2 Mac installer boot")
@@ -452,3 +464,17 @@ class BuildMiscellaneous:
             "Comment",
             "Prevent AppleSEPManager SEP timeout panic on T2 Macs (Sequoia)"
         )["Enabled"] = True
+
+        # Booter/Kernel quirks required for Amber Lake (T2) systems per Dortania's
+        # Coffee Lake Plus guide.  Not set elsewhere in OCLP since these Macs were
+        # never in the unsupported matrix before.
+        # PowerTimeoutKernelPanic: converts IOPMrootDomain power-management timeout
+        #   panics to recoveries — T2 manages power and may not respond in time.
+        # ProtectMemoryRegions: prevents macOS from writing to memory regions that
+        #   bridgeOS/T2 firmware has reserved.
+        # SyncRuntimePermissions: required for correct UEFI runtime service access
+        #   on modern (T2-era) Apple firmware.
+        logging.info("- Enabling Booter/Kernel quirks for T2 Mac (Amber Lake)")
+        self.config["Kernel"]["Quirks"]["PowerTimeoutKernelPanic"] = True
+        self.config["Booter"]["Quirks"]["ProtectMemoryRegions"] = True
+        self.config["Booter"]["Quirks"]["SyncRuntimePermissions"] = True
