@@ -486,12 +486,22 @@ class BuildMiscellaneous:
         self.config["Kernel"]["Quirks"]["DisableIoMapper"] = True
         logging.info("- Disabling IOMapper (VT-d) for T2 DMA compatibility")
 
-        # T2 support is experimental: save the OpenCore boot log to
-        # EFI/OC/OpenCore.txt and disable the hardware watchdog so the
-        # system does not auto-reset before the log can be read.
-        # ApplePanic is already true in the base config and saves kernel
-        # panic reports to EFI; these two additions cover the pre-panic
-        # and pre-kernel portions of the boot log.
+        # T2 support is experimental — enable comprehensive boot logging so
+        # failures can be diagnosed without attaching a serial debugger.
+        #
+        # DisableWatchDog: prevents the hardware watchdog from auto-resetting
+        #   the machine before the screen or log can be read after a hang.
+        # Target=0x43: OpenCore writes EFI/OC/OpenCore.txt (pre-kernel log).
+        # ApplePanic (already true in base config): saves kernel panic reports
+        #   to EFI/OC/panic-*.txt; the report includes recent syslog entries
+        #   and is the closest macOS equivalent to post-panic dmesg on EFI.
+        # DebugEnhancer.kext + -liludbgall: enables the kernel debug subsystem
+        #   on release kernels and routes messages to the unified log; output
+        #   also appears on the verbose-boot screen so it is readable during a
+        #   hang, and is included in any subsequent panic report.
         self.config["Misc"]["Debug"]["DisableWatchDog"] = True
         self.config["Misc"]["Debug"]["Target"] = 0x43
         logging.info("- Enabling OpenCore file logging for T2 diagnostics (EFI/OC/OpenCore.txt)")
+        self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -liludbgall"
+        support.BuildSupport(self.model, self.constants, self.config).enable_kext("DebugEnhancer.kext", self.constants.debugenhancer_version, self.constants.debugenhancer_path)
+        logging.info("- Enabling DebugEnhancer.kext for T2 kernel debug logging")
