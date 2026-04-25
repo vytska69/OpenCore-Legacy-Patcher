@@ -478,3 +478,10 @@ class BuildMiscellaneous:
         self.config["Kernel"]["Quirks"]["PowerTimeoutKernelPanic"] = True
         self.config["Booter"]["Quirks"]["ProtectMemoryRegions"] = True
         self.config["Booter"]["Quirks"]["SyncRuntimePermissions"] = True
+        # Linux T2 kernels boot with iommu=pt (IOMMU pass-through): T2 uses 37-bit
+        # DMA and expects 1:1 physical address mapping rather than IOMMU translation.
+        # DisableIoMapper is the closest macOS equivalent — disables XNU's VT-d
+        # IOMapper which may otherwise remap DMA addresses the T2 PCIe devices
+        # (IOBC, SEPM, ANS2) cannot reach.
+        self.config["Kernel"]["Quirks"]["DisableIoMapper"] = True
+        logging.info("- Disabling IOMapper (VT-d) for T2 DMA compatibility")
