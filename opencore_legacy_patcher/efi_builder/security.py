@@ -13,6 +13,7 @@ from ..support import utilities
 from ..detections import device_probe
 
 from ..datasets import (
+    model_array,
     smbios_data,
     os_data
 )
@@ -99,9 +100,9 @@ class BuildSecurity:
         # Secure Boot policy to use; with T2 configured to "No Security" in Startup
         # Security Utility the T2 hardware does not enforce the chain itself, so this
         # is safe and may allow the SEP to respond to AppleKeyStore requests.
-        if self.model == "MacBookAir8,1":
-            logging.info("- Overriding SecureBootModel to j140k for T2 Mac SEP communication")
-            self.config["Misc"]["Security"]["SecureBootModel"] = "j140k"
-        elif self.model == "MacBookAir8,2":
-            logging.info("- Overriding SecureBootModel to j140a for T2 Mac SEP communication")
-            self.config["Misc"]["Security"]["SecureBootModel"] = "j140a"
+        # Reads the identifier from smbios_data so all MBA8 variants (incl. 8,1_v2)
+        # are covered without hardcoded strings.
+        if self.model in model_array.T2_MacBookAir:
+            sbm = smbios_data.smbios_dictionary[self.model]["SecureBootModel"]
+            logging.info(f"- Overriding SecureBootModel to {sbm} for T2 Mac SEP communication")
+            self.config["Misc"]["Security"]["SecureBootModel"] = sbm

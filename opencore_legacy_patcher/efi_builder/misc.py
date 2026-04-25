@@ -409,7 +409,7 @@ class BuildMiscellaneous:
         at the Apple logo.  The only OCLP-side change needed for T2 Macs is the
         EFI/BOOT/BOOTx64.efi layout in install.py (handled there).
         """
-        if self.model not in ["MacBookAir8,1", "MacBookAir8,2"]:
+        if self.model not in model_array.T2_MacBookAir:
             return
 
         logging.info("- Enabling T2 BridgeOS coprocessor version injection")
@@ -485,3 +485,13 @@ class BuildMiscellaneous:
         # (IOBC, SEPM, ANS2) cannot reach.
         self.config["Kernel"]["Quirks"]["DisableIoMapper"] = True
         logging.info("- Disabling IOMapper (VT-d) for T2 DMA compatibility")
+
+        # T2 support is experimental: save the OpenCore boot log to
+        # EFI/OC/OpenCore.txt and disable the hardware watchdog so the
+        # system does not auto-reset before the log can be read.
+        # ApplePanic is already true in the base config and saves kernel
+        # panic reports to EFI; these two additions cover the pre-panic
+        # and pre-kernel portions of the boot log.
+        self.config["Misc"]["Debug"]["DisableWatchDog"] = True
+        self.config["Misc"]["Debug"]["Target"] = 0x43
+        logging.info("- Enabling OpenCore file logging for T2 diagnostics (EFI/OC/OpenCore.txt)")
