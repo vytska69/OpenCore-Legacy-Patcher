@@ -467,16 +467,19 @@ class BuildMiscellaneous:
         #   that bridgeOS/T2 firmware has reserved.
         # SyncRuntimePermissions: required for correct UEFI runtime service
         #   access on modern (T2-era) Apple firmware.
-        # NOTE: DisableIoMapper is intentionally NOT set.  macOS on native T2
-        #   Macs runs with VT-d/IOMMU active; Apple's T2 PCIe drivers set up
-        #   IOMMU domains for DMA isolation.  Removing the XNU IOMapper causes
-        #   those mappings to be absent → "DMA reply failed" → early panic
-        #   before IOKit initialises.  Linux's iommu=pt is pass-through (IOMMU
-        #   hardware active, 1:1 mappings) — NOT equivalent to DisableIoMapper.
+        # DisableIoMapper: Intel UHD 617 framebuffer needs unrestricted DMA
+        #   access to write verbose-boot text to the display.  With VT-d active
+        #   (DisableIoMapper=False) the iGPU framebuffer console DMA is blocked
+        #   and the kernel hangs silently at the Apple logo despite -v being set.
+        #   Note: the "DMA reply failed" messages seen in T2 PCIe communication
+        #   are unrelated — they come from the SEP/iBridge stack, not the iGPU,
+        #   and are handled by the SEP timeout panic patch.
         logging.info("- Enabling Booter/Kernel quirks for T2 Mac (Amber Lake)")
         self.config["Kernel"]["Quirks"]["PowerTimeoutKernelPanic"] = True
         self.config["Booter"]["Quirks"]["ProtectMemoryRegions"] = True
         self.config["Booter"]["Quirks"]["SyncRuntimePermissions"] = True
+        self.config["Kernel"]["Quirks"]["DisableIoMapper"] = True
+        logging.info("- Disabling IOMapper (VT-d) for Intel UHD 617 framebuffer DMA")
 
         # T2 support is experimental — enable comprehensive boot logging so
         # failures can be diagnosed without attaching a serial debugger.
