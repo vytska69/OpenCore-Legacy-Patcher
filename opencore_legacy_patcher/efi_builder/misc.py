@@ -411,6 +411,16 @@ class BuildMiscellaneous:
         if self.model not in model_array.T2_MacBookAir:
             return
 
+        # Inject apple-coprocessor-version via SSDT so AppleT2.kext can identify
+        # the T2 chip and initialise the SEP/iBridge stack.  The DSDT provides
+        # this property via _DSM UUID a0b5b7c6-... but OpenCore ACPI patching
+        # can shadow the method; the SSDT override guarantees it is evaluated.
+        # Without this property AppleT2 does not configure the SEP, causing
+        # AppleSEPManager to time out and keybagd to block forever.
+        logging.info("- Injecting SSDT-T2-SPOOF for apple-coprocessor-version")
+        shutil.copy(self.constants.t2_spoof_ssdt_path, self.constants.acpi_path)
+        support.BuildSupport(self.model, self.constants, self.config).get_item_by_kv(self.config["ACPI"]["Add"], "Path", "SSDT-T2-SPOOF.aml")["Enabled"] = True
+
         # AAPL,ig-platform-id is NOT present in the IGPU _DSM (only hda-gfx is set).
         # bridgeOS EFI normally injects it at UEFI time, but OpenCore does not relay
         # EFI DeviceProperties set by T2 firmware.  Without this, Sequoia's

@@ -322,6 +322,10 @@ class Constants:
     def demux_ssdt_path(self):
         return self.payload_path / Path("ACPI/SSDT-DGPU.aml")
 
+    @property
+    def t2_spoof_ssdt_path(self):
+        return self.payload_path / Path("ACPI/SSDT-T2-SPOOF.aml")
+
     # Drivers
     @property
     def nvme_driver_path(self):

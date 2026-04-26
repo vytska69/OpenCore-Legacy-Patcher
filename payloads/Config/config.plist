@@ -39,6 +39,14 @@
 				<key>Path</key>
 				<string>SSDT-DGPU.aml</string>
 			</dict>
+			<dict>
+				<key>Comment</key>
+				<string>Inject apple-coprocessor-version for T2 Mac AppleT2 initialisation</string>
+				<key>Enabled</key>
+				<false/>
+				<key>Path</key>
+				<string>SSDT-T2-SPOOF.aml</string>
+			</dict>
 		</array>
 		<key>Delete</key>
 		<array/>
