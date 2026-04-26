@@ -416,8 +416,12 @@ class BuildMiscellaneous:
             shutil.copy(self.constants.t2_spoof_ssdt_path, self.constants.acpi_path)
             support.BuildSupport(self.model, self.constants, self.config).get_item_by_kv(self.config["ACPI"]["Add"], "Path", "SSDT-T2-SPOOF.aml")["Enabled"] = True
 
-        # AAPL,ig-platform-id is always needed — without it the iGPU framebuffer
-        # stalls and verbose output never appears (Apple logo hang, no verbose).
+        # AAPL,ig-platform-id is NOT present in the IGPU _DSM (only hda-gfx is set).
+        # bridgeOS EFI normally injects it at UEFI time, but OpenCore does not relay
+        # EFI DeviceProperties set by T2 firmware.  Without this, Sequoia's
+        # AppleIntelKBLGraphicsFramebuffer initialises without a framebuffer config
+        # and the display pipeline stalls — Apple logo hang, no verbose output.
+        # 0x87C00005 = Intel UHD 617 (GT3e) MacBook Air variant, little-endian <05 00 C0 87>.
         igpu_path = "PciRoot(0x0)/Pci(0x2,0x0)"
         if igpu_path not in self.config["DeviceProperties"]["Add"]:
             self.config["DeviceProperties"]["Add"][igpu_path] = {}
@@ -458,6 +462,18 @@ class BuildMiscellaneous:
                 "Prevent AppleSEPManager SEP timeout panic on T2 Macs (Sequoia)"
             )["Enabled"] = True
 
+        # PowerTimeoutKernelPanic: converts IOPMrootDomain PM-timeout panics to
+        #   recoveries — T2 manages power and may not respond in time.
+        # ProtectMemoryRegions: prevents macOS from writing to memory regions
+        #   that bridgeOS/T2 firmware has reserved.
+        # SyncRuntimePermissions: required for correct UEFI runtime service
+        #   access on modern (T2-era) Apple firmware.
+        # NOTE: DisableIoMapper is intentionally NOT set.  macOS on native T2
+        #   Macs runs with VT-d/IOMMU active; Apple's T2 PCIe drivers set up
+        #   IOMMU domains for DMA isolation.  Removing the XNU IOMapper causes
+        #   those mappings to be absent → "DMA reply failed" → early panic
+        #   before IOKit initialises.  Linux's iommu=pt is pass-through (IOMMU
+        #   hardware active, 1:1 mappings) — NOT equivalent to DisableIoMapper.
         logging.info("- Enabling Booter/Kernel quirks for T2 Mac (Amber Lake)")
         self.config["Kernel"]["Quirks"]["PowerTimeoutKernelPanic"] = True
         self.config["Booter"]["Quirks"]["ProtectMemoryRegions"] = True
