@@ -486,6 +486,16 @@ class BuildMiscellaneous:
         self.config["Kernel"]["Quirks"]["DisableIoMapperMapping"] = True
         logging.info("- Enabling IOMMU passthrough (DisableIoMapperMapping) for T2 DMA + framebuffer")
 
+        # With SecureBootModel="Disabled" (standard OCLP setting for unsupported Macs),
+        # bridgeOS still writes sep-booted to NVRAM after T2 boots.  AppleKeyStore reads
+        # this variable; if present it sets _sep_enabled=1 and waits for the SEP startup
+        # handshake — which times out on Sequoia because the OS is unsupported.  Deleting
+        # the variable before the kernel reads it causes AppleKeyStore to fast-fail AKS
+        # requests instead of hanging indefinitely (keybagd blocks the installer UI).
+        if "sep-booted" not in self.config["NVRAM"]["Delete"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]:
+            self.config["NVRAM"]["Delete"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"] += ["sep-booted"]
+        logging.info("- Deleting sep-booted NVRAM var so AppleKeyStore fast-fails AKS if SEP is unresponsive")
+
         # DisableWatchDog: prevents the hardware watchdog from auto-resetting
         #   the machine before log can be read after a hang.
         # Target=0x43: OpenCore writes EFI/OC/OpenCore.txt (pre-kernel log).
