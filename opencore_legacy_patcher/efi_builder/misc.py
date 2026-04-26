@@ -427,6 +427,20 @@ class BuildMiscellaneous:
         logging.info("- Adding boot args for T2 Mac Sequoia installer")
         self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -no_compat_check -v amfi=0x80"
 
+        if self.constants.t2_igfx_fw:
+            # igfxfw=2: force-load Intel GPU firmware from the kext instead of relying on
+            #   bridgeOS EFI (which OpenCore may not relay after ExitBootServices).
+            # igfxonln=1: force all iGPU connectors to be reported as online so the GPU
+            #   does not enter a headless/sleep state during the OpenCore→kernel handoff.
+            # Without these, WhateverGreen's KBL patches may stall the Metal command ring
+            # when WindowServer first tries GPU rendering → beachball at 100% progress bar.
+            logging.info("- Adding igfxfw=2 igfxonln=1 for Intel UHD 617 GPU firmware fix")
+            self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " igfxfw=2 igfxonln=1"
+
+        if self.constants.t2_disable_weg:
+            logging.info("- Disabling WhateverGreen for T2 Mac on Sequoia")
+            support.BuildSupport(self.model, self.constants, self.config).get_kext_by_bundle_path("WhateverGreen.kext")["Enabled"] = False
+
         logging.info("- Adding XhciDxe.efi and UsbBusDxe.efi for T2 Mac USB root device fix")
         shutil.copy(self.constants.xhci_driver_path, self.constants.drivers_path)
         shutil.copy(self.constants.usb_bus_driver_path, self.constants.drivers_path)

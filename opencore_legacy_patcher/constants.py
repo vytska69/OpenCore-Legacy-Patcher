@@ -203,6 +203,8 @@ class Constants:
         self.t2_ssdt_inject:      bool = True   # Inject SSDT-T2-SPOOF for apple-coprocessor-version
         self.t2_sep_panic_patch:  bool = True   # Convert AppleSEPManager panic to early return
         self.t2_iomapper_mapping: bool = True   # DisableIoMapperMapping (IOMMU passthrough)
+        self.t2_igfx_fw:          bool = True   # igfxfw=2 igfxonln=1 (force GPU firmware + keep iGPU online)
+        self.t2_disable_weg:      bool = False  # Disable WhateverGreen for MBA8 on Sequoia
         self.t2_debug_logging:    bool = False  # DebugEnhancer.kext + -liludbgall
 
         ## OS Settings

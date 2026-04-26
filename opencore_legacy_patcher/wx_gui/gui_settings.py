@@ -899,7 +899,30 @@ class SettingsFrame(wx.Frame):
                         "DMA and T2 PCIe DMA to coexist.",
                     ],
                 },
+                "GPU Firmware Fix": {
+                    "type": "checkbox",
+                    "value": self.constants.t2_igfx_fw,
+                    "variable": "t2_igfx_fw",
+                    "description": [
+                        "Add igfxfw=2 igfxonln=1 boot args.",
+                        "Forces GPU firmware load from kext",
+                        "and keeps iGPU online during handoff.",
+                    ],
+                },
                 "wrap_around t2_2": {
+                    "type": "wrap_around",
+                },
+                "Disable WhateverGreen": {
+                    "type": "checkbox",
+                    "value": self.constants.t2_disable_weg,
+                    "variable": "t2_disable_weg",
+                    "description": [
+                        "Disable WhateverGreen.kext for MBA8",
+                        "on Sequoia. Try if GPU hang suspected",
+                        "(beachball at 100% progress bar).",
+                    ],
+                },
+                "wrap_around t2_3": {
                     "type": "wrap_around",
                 },
                 "Debug Logging": {
