@@ -411,22 +411,13 @@ class BuildMiscellaneous:
         if self.model not in model_array.T2_MacBookAir:
             return
 
-        # Inject apple-coprocessor-version via SSDT so AppleT2.kext can identify
-        # the T2 chip and initialise the SEP/iBridge stack.  The DSDT provides
-        # this property via _DSM UUID a0b5b7c6-... but OpenCore ACPI patching
-        # can shadow the method; the SSDT override guarantees it is evaluated.
-        # Without this property AppleT2 does not configure the SEP, causing
-        # AppleSEPManager to time out and keybagd to block forever.
-        logging.info("- Injecting SSDT-T2-SPOOF for apple-coprocessor-version")
-        shutil.copy(self.constants.t2_spoof_ssdt_path, self.constants.acpi_path)
-        support.BuildSupport(self.model, self.constants, self.config).get_item_by_kv(self.config["ACPI"]["Add"], "Path", "SSDT-T2-SPOOF.aml")["Enabled"] = True
+        if self.constants.t2_ssdt_inject:
+            logging.info("- Injecting SSDT-T2-SPOOF for apple-coprocessor-version")
+            shutil.copy(self.constants.t2_spoof_ssdt_path, self.constants.acpi_path)
+            support.BuildSupport(self.model, self.constants, self.config).get_item_by_kv(self.config["ACPI"]["Add"], "Path", "SSDT-T2-SPOOF.aml")["Enabled"] = True
 
-        # AAPL,ig-platform-id is NOT present in the IGPU _DSM (only hda-gfx is set).
-        # bridgeOS EFI normally injects it at UEFI time, but OpenCore does not relay
-        # EFI DeviceProperties set by T2 firmware.  Without this, Sequoia's
-        # AppleIntelKBLGraphicsFramebuffer initialises without a framebuffer config
-        # and the display pipeline stalls — Apple logo hang, no verbose output.
-        # 0x87C00005 = Intel UHD 617 (GT3e) MacBook Air variant, little-endian <05 00 C0 87>.
+        # AAPL,ig-platform-id is always needed — without it the iGPU framebuffer
+        # stalls and verbose output never appears (Apple logo hang, no verbose).
         igpu_path = "PciRoot(0x0)/Pci(0x2,0x0)"
         if igpu_path not in self.config["DeviceProperties"]["Add"]:
             self.config["DeviceProperties"]["Add"][igpu_path] = {}
@@ -436,69 +427,42 @@ class BuildMiscellaneous:
         logging.info("- Adding boot args for T2 Mac Sequoia installer")
         self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -no_compat_check -v amfi=0x80"
 
-        # T2 Macs boot from USB-C ports that are behind the Thunderbolt/XHCI stack.
-        # T2's EFI may not fully hand off the XHCI controller state to OpenCore, so
-        # the kernel never sees the USB installer drive → "Still waiting for root device".
-        # XhciDxe.efi re-initialises the XHCI controller at the UEFI stage and
-        # UsbBusDxe.efi provides the USB bus protocol, ensuring the controller is
-        # connected before ExitBootServices so the kernel can find the root device.
         logging.info("- Adding XhciDxe.efi and UsbBusDxe.efi for T2 Mac USB root device fix")
         shutil.copy(self.constants.xhci_driver_path, self.constants.drivers_path)
         shutil.copy(self.constants.usb_bus_driver_path, self.constants.drivers_path)
         support.BuildSupport(self.model, self.constants, self.config).get_efi_binary_by_path("XhciDxe.efi", "UEFI", "Drivers")["Enabled"] = True
         support.BuildSupport(self.model, self.constants, self.config).get_efi_binary_by_path("UsbBusDxe.efi", "UEFI", "Drivers")["Enabled"] = True
 
-        # AMFIPass is normally only injected for Macs whose Max OS is below Sonoma.
-        # T2 Macs (Max OS = Sonoma) need it explicitly for Sequoia because AMFI on
-        # Sequoia rejects Lilu plugin kexts (WhateverGreen, etc.)
-        # without this early AMFI bypass, causing a silent hang during kext init.
         logging.info("- Enabling AMFIPass for T2 Mac Sequoia kext injection")
         support.BuildSupport(self.model, self.constants, self.config).enable_kext("AMFIPass.kext", self.constants.amfipass_version, self.constants.amfipass_path)
 
-        # After ~20 SEP mailbox timeouts AppleSEPManagerIntel panics with:
-        # "AppleSEPManager panic for 'AppleKeyStore': sks request timeout"
-        # Patch converts the panic call to an early return (MinKernel=24.0.0 scopes it to Sequoia only).
-        logging.info("- Enabling AppleSEPManager SEP timeout panic patch for T2 Macs")
-        support.BuildSupport(self.model, self.constants, self.config).get_item_by_kv(
-            self.config["Kernel"]["Patch"],
-            "Comment",
-            "Prevent AppleSEPManager SEP timeout panic on T2 Macs (Sequoia)"
-        )["Enabled"] = True
+        if self.constants.t2_sep_panic_patch:
+            logging.info("- Enabling AppleSEPManager SEP timeout panic patch for T2 Macs")
+            support.BuildSupport(self.model, self.constants, self.config).get_item_by_kv(
+                self.config["Kernel"]["Patch"],
+                "Comment",
+                "Prevent AppleSEPManager SEP timeout panic on T2 Macs (Sequoia)"
+            )["Enabled"] = True
 
-        # PowerTimeoutKernelPanic: converts IOPMrootDomain PM-timeout panics to
-        #   recoveries — T2 manages power and may not respond in time.
-        # ProtectMemoryRegions: prevents macOS from writing to memory regions
-        #   that bridgeOS/T2 firmware has reserved.
-        # SyncRuntimePermissions: required for correct UEFI runtime service
-        #   access on modern (T2-era) Apple firmware.
-        # DisableIoMapper=False + DisableIoMapperMapping=True: IOMMU passthrough
-        #   mode — the IOMMU hardware stays active (giving T2 PCIe devices valid
-        #   DMA table entries so IOBC/SEPM mailbox DMA works), but every mapping
-        #   is 1:1 physical so the Intel UHD 617 framebuffer DMA is unrestricted.
-        #   This is the macOS equivalent of Linux's iommu=pt boot parameter used
-        #   by t2linux.  DisableIoMapper=True (previous setting) removed the XNU
-        #   IOMapper entirely, which prevented T2 PCIe DMA and caused the
-        #   "DMA reply failed" messages that broke SEP communication.
         logging.info("- Enabling Booter/Kernel quirks for T2 Mac (Amber Lake)")
         self.config["Kernel"]["Quirks"]["PowerTimeoutKernelPanic"] = True
         self.config["Booter"]["Quirks"]["ProtectMemoryRegions"] = True
         self.config["Booter"]["Quirks"]["SyncRuntimePermissions"] = True
-        self.config["Kernel"]["Quirks"]["DisableIoMapperMapping"] = True
-        logging.info("- Enabling IOMMU passthrough (DisableIoMapperMapping) for T2 DMA + framebuffer")
 
-        # With SecureBootModel="Disabled" (standard OCLP setting for unsupported Macs),
-        # bridgeOS still writes sep-booted to NVRAM after T2 boots.  AppleKeyStore reads
-        # this variable; if present it sets _sep_enabled=1 and waits for the SEP startup
-        # handshake — which times out on Sequoia because the OS is unsupported.  Deleting
-        # the variable before the kernel reads it causes AppleKeyStore to fast-fail AKS
-        # requests instead of hanging indefinitely (keybagd blocks the installer UI).
-        if "sep-booted" not in self.config["NVRAM"]["Delete"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]:
-            self.config["NVRAM"]["Delete"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"] += ["sep-booted"]
-        logging.info("- Deleting sep-booted NVRAM var so AppleKeyStore fast-fails AKS if SEP is unresponsive")
+        if self.constants.t2_iomapper_mapping:
+            self.config["Kernel"]["Quirks"]["DisableIoMapperMapping"] = True
+            logging.info("- Enabling IOMMU passthrough (DisableIoMapperMapping) for T2 DMA + framebuffer")
 
-        # DisableWatchDog: prevents the hardware watchdog from auto-resetting
-        #   the machine before log can be read after a hang.
-        # Target=0x43: OpenCore writes EFI/OC/OpenCore.txt (pre-kernel log).
+        if self.constants.t2_sep_fast_fail:
+            if "sep-booted" not in self.config["NVRAM"]["Delete"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]:
+                self.config["NVRAM"]["Delete"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"] += ["sep-booted"]
+            logging.info("- Deleting sep-booted NVRAM var so AppleKeyStore fast-fails AKS if SEP is unresponsive")
+
         self.config["Misc"]["Debug"]["DisableWatchDog"] = True
         self.config["Misc"]["Debug"]["Target"] = 0x43
         logging.info("- Enabling OpenCore file logging for T2 diagnostics (EFI/OC/OpenCore.txt)")
+
+        if self.constants.t2_debug_logging:
+            logging.info("- Enabling DebugEnhancer.kext + -liludbgall for T2 kernel debug logging")
+            self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -liludbgall"
+            support.BuildSupport(self.model, self.constants, self.config).enable_kext("DebugEnhancer.kext", self.constants.debugenhancer_version, self.constants.debugenhancer_path)

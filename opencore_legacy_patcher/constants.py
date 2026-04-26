@@ -198,6 +198,13 @@ class Constants:
         self.disable_cs_lv:  bool = False  # Disable Library validation
         self.disable_amfi:   bool = False  # Disable AMFI
 
+        ## T2 Mac Debug Settings (MacBookAir8,1 / 8,2 Sequoia experimental)
+        self.t2_sep_fast_fail:    bool = True   # Delete sep-booted NVRAM so AppleKeyStore fast-fails AKS
+        self.t2_ssdt_inject:      bool = True   # Inject SSDT-T2-SPOOF for apple-coprocessor-version
+        self.t2_sep_panic_patch:  bool = True   # Convert AppleSEPManager panic to early return
+        self.t2_iomapper_mapping: bool = True   # DisableIoMapperMapping (IOMMU passthrough)
+        self.t2_debug_logging:    bool = False  # DebugEnhancer.kext + -liludbgall
+
         ## OS Settings
         self.os_support:        float = 12.0
         self.detected_os:         int = 0  #  Major Kernel Version

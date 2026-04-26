@@ -852,6 +852,67 @@ class SettingsFrame(wx.Frame):
                     "args": wx.Frame,
                 },
             },
+            "T2 Debug": {
+                "T2 Patches": {
+                    "type": "title",
+                },
+                "SEP Fast-fail": {
+                    "type": "checkbox",
+                    "value": self.constants.t2_sep_fast_fail,
+                    "variable": "t2_sep_fast_fail",
+                    "description": [
+                        "Delete sep-booted NVRAM var so",
+                        "AppleKeyStore fast-fails AKS requests",
+                        "instead of hanging forever waiting for SEP.",
+                    ],
+                },
+                "SSDT apple-coprocessor-version": {
+                    "type": "checkbox",
+                    "value": self.constants.t2_ssdt_inject,
+                    "variable": "t2_ssdt_inject",
+                    "description": [
+                        "Inject apple-coprocessor-version via ACPI",
+                        "SSDT so AppleT2.kext can identify",
+                        "the T2 chip and init SEP/iBridge.",
+                    ],
+                },
+                "wrap_around t2_1": {
+                    "type": "wrap_around",
+                },
+                "SEP Panic Patch": {
+                    "type": "checkbox",
+                    "value": self.constants.t2_sep_panic_patch,
+                    "variable": "t2_sep_panic_patch",
+                    "description": [
+                        "Convert AppleSEPManager timeout panic",
+                        "to an early return so the machine",
+                        "doesn't hard-panic on SEP timeout.",
+                    ],
+                },
+                "IOMMU Passthrough": {
+                    "type": "checkbox",
+                    "value": self.constants.t2_iomapper_mapping,
+                    "variable": "t2_iomapper_mapping",
+                    "description": [
+                        "Enable DisableIoMapperMapping (IOMMU",
+                        "passthrough). Needed for iGPU framebuffer",
+                        "DMA and T2 PCIe DMA to coexist.",
+                    ],
+                },
+                "wrap_around t2_2": {
+                    "type": "wrap_around",
+                },
+                "Debug Logging": {
+                    "type": "checkbox",
+                    "value": self.constants.t2_debug_logging,
+                    "variable": "t2_debug_logging",
+                    "description": [
+                        "Enable DebugEnhancer.kext + -liludbgall.",
+                        "Adds timing overhead — may cause",
+                        "installer timeouts. Use for diagnostics.",
+                    ],
+                },
+            },
             "Developer": {
                 "Validation": {
                     "type": "title",
