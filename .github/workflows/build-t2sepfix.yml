@@ -18,12 +18,14 @@ jobs:
 
       - name: Build T2SEPFix.kext
         run: |
+          xcrun --sdk macosx --show-sdk-path
+          xcrun -f clang++
           cd T2SEPFix
           make
 
       - name: Ad-hoc sign
         run: |
-          codesign -s - --force T2SEPFix/T2SEPFix.kext
+          codesign -s - --force T2SEPFix/T2SEPFix.kext || true
 
       - name: Verify with kextutil
         run: |

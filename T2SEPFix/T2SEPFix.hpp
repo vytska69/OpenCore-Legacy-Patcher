@@ -23,7 +23,6 @@
 #include <IOKit/IOService.h>
 #include <IOKit/IOLib.h>
 #include <IOKit/pci/IOPCIDevice.h>
-#include <IOKit/IONVRAM.h>
 
 // ---------------------------------------------------------------------------
 // Constants

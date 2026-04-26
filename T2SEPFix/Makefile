@@ -85,11 +85,14 @@ CXXFLAGS := \
     -O2 \
     -g
 
+KEXT_LIB_DIR := $(SDK)/usr/lib/kext
+
 # Linker flags for a kext bundle.
 LDFLAGS := \
     -arch $(ARCH) \
     -isysroot $(SDK) \
     -mmacosx-version-min=$(MACOSX_DEPLOYMENT_TARGET) \
+    -L$(KEXT_LIB_DIR) \
     -Xlinker -kext \
     -nostdlib \
     -lkmodc++ \
