@@ -433,14 +433,8 @@ class BuildMiscellaneous:
         self.config["DeviceProperties"]["Add"][igpu_path]["AAPL,ig-platform-id"] = binascii.unhexlify("0500C087")
         logging.info("- Injecting AAPL,ig-platform-id 0x87C00005 for Intel UHD 617")
 
-        # SMC-Spoof.kext + AppleSMC patch: makes the SMC report a spoofed model string
-        # so the Sequoia compatibility check doesn't reject the machine based on SMC data.
-        logging.info("- Enabling SMC-Spoof for T2 Mac installer boot")
-        support.BuildSupport(self.model, self.constants, self.config).get_item_by_kv(self.config["Kernel"]["Patch"], "Identifier", "com.apple.driver.AppleSMC")["Enabled"] = True
-        support.BuildSupport(self.model, self.constants, self.config).enable_kext("SMC-Spoof.kext", self.constants.smcspoof_version, self.constants.smcspoof_path)
-
         logging.info("- Adding boot args for T2 Mac Sequoia installer")
-        self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -no_compat_check -v rddelay=5 amfi=0x80"
+        self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -no_compat_check -v amfi=0x80"
 
         # T2 Macs boot from USB-C ports that are behind the Thunderbolt/XHCI stack.
         # T2's EFI may not fully hand off the XHCI controller state to OpenCore, so
@@ -456,7 +450,7 @@ class BuildMiscellaneous:
 
         # AMFIPass is normally only injected for Macs whose Max OS is below Sonoma.
         # T2 Macs (Max OS = Sonoma) need it explicitly for Sequoia because AMFI on
-        # Sequoia rejects Lilu plugin kexts (WhateverGreen, DebugEnhancer, etc.)
+        # Sequoia rejects Lilu plugin kexts (WhateverGreen, etc.)
         # without this early AMFI bypass, causing a silent hang during kext init.
         logging.info("- Enabling AMFIPass for T2 Mac Sequoia kext injection")
         support.BuildSupport(self.model, self.constants, self.config).enable_kext("AMFIPass.kext", self.constants.amfipass_version, self.constants.amfipass_path)
@@ -492,32 +486,9 @@ class BuildMiscellaneous:
         self.config["Kernel"]["Quirks"]["DisableIoMapperMapping"] = True
         logging.info("- Enabling IOMMU passthrough (DisableIoMapperMapping) for T2 DMA + framebuffer")
 
-        # Belt-and-suspenders: if the SEP still does not respond after IOMMU
-        # passthrough, delete the sep-booted NVRAM variable so AppleKeyStore
-        # sees _sep_enabled=0 and fast-fails all AKS requests immediately.
-        # Without this, the keybagd ioctl hangs forever (IOCommandGate never
-        # signalled), blocking the installer UI from appearing despite the
-        # progress bar reaching 100%.
-        if "sep-booted" not in self.config["NVRAM"]["Delete"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]:
-            self.config["NVRAM"]["Delete"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"] += ["sep-booted"]
-        logging.info("- Deleting sep-booted NVRAM var to fast-fail AKS if SEP is unresponsive")
-
-        # T2 support is experimental — enable comprehensive boot logging so
-        # failures can be diagnosed without attaching a serial debugger.
-        #
         # DisableWatchDog: prevents the hardware watchdog from auto-resetting
-        #   the machine before the screen or log can be read after a hang.
+        #   the machine before log can be read after a hang.
         # Target=0x43: OpenCore writes EFI/OC/OpenCore.txt (pre-kernel log).
-        # ApplePanic (already true in base config): saves kernel panic reports
-        #   to EFI/OC/panic-*.txt; the report includes recent syslog entries
-        #   and is the closest macOS equivalent to post-panic dmesg on EFI.
-        # DebugEnhancer.kext + -liludbgall: enables the kernel debug subsystem
-        #   on release kernels and routes messages to the unified log; output
-        #   also appears on the verbose-boot screen so it is readable during a
-        #   hang, and is included in any subsequent panic report.
         self.config["Misc"]["Debug"]["DisableWatchDog"] = True
         self.config["Misc"]["Debug"]["Target"] = 0x43
         logging.info("- Enabling OpenCore file logging for T2 diagnostics (EFI/OC/OpenCore.txt)")
-        self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -liludbgall"
-        support.BuildSupport(self.model, self.constants, self.config).enable_kext("DebugEnhancer.kext", self.constants.debugenhancer_version, self.constants.debugenhancer_path)
-        logging.info("- Enabling DebugEnhancer.kext for T2 kernel debug logging")
