@@ -1,104 +1,156 @@
-# ⛔ DISCONTINUED — MacBookAir8,1 / MacBookAir8,2 + macOS Sequoia via OCLP
+<div align="center">
+             <img src="docs/images/OC-Patcher.png" alt="OpenCore Patcher Logo" width="256" />
+             <h1>OpenCore Legacy Patcher</h1>
+</div>
 
-> **This fork is no longer maintained.** All attempted approaches to make macOS Sequoia boot on MacBookAir8,1 and MacBookAir8,2 via OpenCore Legacy Patcher have been exhausted without success. The underlying problem is a hardware-level incompatibility between Apple's T2 chip firmware on these machines and macOS Sequoia's kernel. See the full technical explanation below.
+> **⚠️ EXPERIMENTAL FORK** — This is an experimental fork of [Dortania's OpenCore Legacy Patcher](https://github.com/dortania/OpenCore-Legacy-Patcher) that attempts to add **T2 Mac support** (MacBook Air 2018/2019). These changes are **not** officially supported and may cause kernel panics or other issues. Use at your own risk.
 
----
+## T2 Mac Support — Status & TODO
 
-## What this fork attempted
+> **🚧 Work in progress — not ready for general use.**
 
-This was a fork of [dortania/OpenCore-Legacy-Patcher](https://github.com/dortania/OpenCore-Legacy-Patcher) with experimental patches targeting **MacBookAir8,1** (2018) and **MacBookAir8,2** (2019) — the only Intel MacBook Air models equipped with Apple's T2 security chip — to enable booting macOS Sequoia (15.x).
+- [x] USB boot
+- [x] T2 kext injection
+- [x] Boot args, OC logging, panic improvements
+- [x] XhciDxe.efi + UsbBusDxe.efi
+- [ ] USB-Map.kext (MacBookAir8,1 / 8,2)
+- [ ] Installer boots
+- [ ] Post-install + full OS usability
 
-Apple dropped official support for these models in Sequoia. OCLP supports them up to Sonoma (14.x). This fork tried to extend that to Sequoia.
+A Python-based project revolving around [Acidanthera's OpenCorePkg](https://github.com/acidanthera/OpenCorePkg) and [Lilu](https://github.com/acidanthera/Lilu) for both running and unlocking features in macOS on supported and unsupported Macs.
 
----
+Our project's main goal is to breathe new life into Macs no longer supported by Apple, allowing for the installation and usage of macOS Big Sur and newer on machines as old as 2007.
 
-## What was implemented
+----------
 
-### OpenCore config patches (`efi_builder/misc.py`)
-- `AAPL,ig-platform-id = 0x87C00005` — Intel UHD 617 (Amber Lake / GT3e) framebuffer injection. Without this, bridgeOS EFI injects it at UEFI time but OpenCore does not relay EFI DeviceProperties from T2 firmware, causing the display pipeline to stall (gray screen / no verbose output).
-- `igfxfw=2 igfxonln=1` — Force Intel GPU firmware load from kext and force iGPU online through the OpenCore→kernel handoff.
-- `amfi=0x80 -no_compat_check` — AMFI and compat check bypass required for unsigned kext injection.
-- `sep-booted` NVRAM Delete — Attempt to remove the NVRAM variable that bridgeOS writes after signalling SEP boot, to prevent AppleKeyStore from waiting forever for a SEP response.
-- `SSDT-T2-SPOOF.aml` — Injects `apple-coprocessor-version` into the ACPI device tree to spoof T2 coprocessor presence to macOS.
-- `XhciDxe.efi` + `UsbBusDxe.efi` — USB root device fix for T2 Mac boot path.
-- `AMFIPass.kext` — Allows unsigned kexts to load with AMFI active.
-- `PowerTimeoutKernelPanic`, `ProtectMemoryRegions`, `SyncRuntimePermissions` — Booter/Kernel quirks required for T2-era Apple firmware.
-- OpenCore debug logging (`DisableWatchDog`, `Target=0x43`).
+![GitHub all releases](https://img.shields.io/github/downloads/dortania/OpenCore-Legacy-Patcher/total?color=white&style=plastic) ![GitHub top language](https://img.shields.io/github/languages/top/dortania/OpenCore-Legacy-Patcher?color=4B8BBE&style=plastic) ![Discord](https://img.shields.io/discord/417165963327176704?color=7289da&label=discord&style=plastic)
 
-### Security patches (`efi_builder/security.py`)
-- `SecureBootModel = Disabled` — The T2 chip's own EFI code always reports `j140kap.im4m` as its hardware Secure Boot manifest regardless of this setting. OpenCore's `SecureBootModel` does not override T2 hardware Secure Boot. Setting it to any named model (e.g. `j140k`) causes OpenCore to additionally attempt to validate `OS.dmg.root_hash` against that manifest — a file that does not exist for Sequoia on these Macs — resulting in `Err(0xE)` at every boot. Boot proceeds despite this error, but the setting was incorrect and has been removed.
+----------
 
-### T2 Debug settings UI (`wx_gui/gui_settings.py`, `constants.py`)
-A dedicated **"T2 Debug"** tab was added to OCLP's settings window with individual toggles for every T2-specific patch, allowing each to be tested independently without code changes:
-- SEP Fast-fail (sep-booted NVRAM Delete)
-- SSDT apple-coprocessor-version injection
-- SEP Panic Patch
-- IOMMU Passthrough (`DisableIoMapperMapping`)
-- GPU Firmware Fix (`igfxfw=2 igfxonln=1`)
-- Disable WhateverGreen
-- Debug Logging (DebugEnhancer.kext + `-liludbgall`)
+Noteworthy features of OpenCore Legacy Patcher:
 
----
+* Support for macOS Big Sur, Monterey, Ventura, Sonoma and Sequoia
+* Native Over the Air (OTA) System Updates
+* Supports Penryn and newer Macs
+* Full support for WPA Wi-Fi and Personal Hotspot on BCM943224 and newer wireless chipsets
+* System Integrity Protection, FileVault 2, .im4m Secure Boot and Vaulting
+* Recovery OS, Safe Mode and Single-user Mode booting on non-native OSes
+* Unlocks features such as Sidecar and AirPlay to Mac even on native Macs
+* Enables enhanced SATA and NVMe power management on non-Apple storage devices
+* Zero firmware patching required (ie. APFS ROM patching)
+* Graphics acceleration for both Metal and non-Metal GPUs
 
-## The fundamental problem
+----------
 
-### T2 PCIe mailbox communication failure
+Note: Only clean-installs and upgrades are supported. macOS Big Sur installs already patched with other patchers, such as [Patched Sur](https://github.com/BenSova/Patched-Sur) or [bigmac](https://github.com/StarPlayrX/bigmac), cannot be used due to broken file integrity with APFS snapshots and SIP.
 
-When macOS Sequoia boots on MacBookAir8,1/8,2 via OpenCore, the T2 chip's PCIe mailbox (BCE — Buffer Copy Engine) fails to initialise. This appears in verbose boot as a repeated DMA retry loop:
+* You can, however, reinstall macOS with this patcher and retain your original data
 
-```
-DMA reply ... 3 tries remaining
-DMA reply ... 2 tries remaining
-DMA reply ... failed
-```
+Note 2: Currently, OpenCore Legacy Patcher officially supports patching to run macOS Big Sur through Sonoma installs. For older OSes, OpenCore may function; however, support is currently not provided from Dortania.
 
-The T2 chip is a PCIe device (vendor `0x106b`, device `0x1801`) with:
-- **BAR2** — DMA registers
-- **BAR4** — mailbox registers (`+0x108` reply counter, `+0x810` reply base, `+0x820` outbound mailbox)
-- Up to **8 MSI vectors** (IRQ0 = mailbox, IRQ4 = DMA), 37-bit DMA mask
+* For macOS Mojave and Catalina support, we recommend the use of [dosdude1's patchers](http://dosdude1.com)
 
-On native Sonoma boot (without OCLP), the T2 communicates correctly — the hardware is not defective. When OpenCore is inserted into the boot path, something in the UEFI→kernel handoff breaks the PCIe DMA communication between the Intel CPU and the T2 chip.
+## Getting Started
 
-### Why keybagd / AppleKeyStore hangs
+To start using the project, please see our in-depth guide:
 
-With T2 mailbox communication broken, `AppleKeyStore` cannot reach the Secure Enclave Processor (SEP) inside the T2. On Sequoia, `keybagd` calls `AppleKeyStore` during early userspace initialisation. If SEP does not respond, `keybagd` blocks indefinitely — producing the characteristic **100% progress bar hang** with a spinning cursor that never becomes a login screen.
+* [OpenCore Legacy Patcher Guide](https://dortania.github.io/OpenCore-Legacy-Patcher/)
 
-This hang occurs even with:
-- FileVault **disabled**
-- T2 security set to **No Security** (via Startup Security Utility)
-- T2 jailbreak applied (checkm8/checkra1n)
-- `sep-booted` NVRAM variable deleted
-- `CryptexFixup.kext` injected
-- `SecureBootModel = Disabled`
+## Support
 
-### Why this cannot be fixed from outside the kernel
+This project is offered on an AS-IS basis, we do not guarantee support for any issues that may arise. However, there is a community server with other passionate users and developers that can aid you:
 
-The BCE driver (`AppleT2` family) is compiled into the sealed system volume's kernel collection. It cannot be replaced or patched via OpenCore kext injection at boot time without modifying the sealed volume (which requires booting macOS first — a circular dependency when macOS cannot boot).
+* [OpenCore Patcher Paradise Discord Server](https://discord.gg/rqdPgH8xSN)
+  * Keep in mind that the Discord server is maintained by the community, so we ask everyone to be respectful.
+  * Please review our docs on [how to debug with OpenCore](https://dortania.github.io/OpenCore-Legacy-Patcher/DEBUG.html) to gather important information to help others with troubleshooting.
 
-A custom IOKit kext (`T2SEPFix.kext`) was written to remove `sep-booted` from IODTNVRAM via `waitForMatchingService` and to re-enable T2 PCIe D0 state + MSI interrupts via `mapDeviceMemoryWithRegister`. The kext source is preserved in git history (commit `66f38d5`). It was never compiled because no macOS system was available, and the GitHub Actions CI build failed before the error could be diagnosed.
+## Running from source
 
----
+To run the project from source, see here: [Build and run from source](./SOURCE.md)
 
-## What was confirmed working
+## Credits
 
-- Intel UHD 617 framebuffer initialises correctly with `AAPL,ig-platform-id = 0x87C00005` + `igfxfw=2 igfxonln=1` — **the gray screen is resolved**.
-- OpenCore debug logging (`EFI/OC/OpenCore.txt`) produces usable boot logs.
-- The T2 Debug UI tab works correctly and all toggles function as expected.
-
----
-
-## Upstream issue
-
-This is a known open issue in the main OCLP project:
-
-**[dortania/OpenCore-Legacy-Patcher#1136](https://github.com/dortania/OpenCore-Legacy-Patcher/issues/1136)**
-
-MacBookAir8,1 and MacBookAir8,2 are the only Intel Mac models where this problem exists. Other T2 Macs (MacBookPro15,x, Macmini8,1) work fine with OCLP on Sequoia. The difference is unknown.
-
-If a fix is ever found upstream, this fork's OCLP patches (iGPU framebuffer, T2 Debug UI tab) remain valid and can be merged forward.
-
----
-
-## Sonoma
-
-MacBookAir8,1 and MacBookAir8,2 are **natively supported** in macOS Sonoma (14.x) — OCLP is not needed. If you are on one of these machines, use Sonoma without OCLP.
+* [Acidanthera](https://github.com/Acidanthera)
+  * OpenCorePkg, as well as many of the core kexts and tools
+* [DhinakG](https://github.com/DhinakG)
+  * Main co-author
+* [Khronokernel](https://github.com/Khronokernel)
+  * Main co-author
+* [Ausdauersportler](https://github.com/Ausdauersportler)
+  * iMacs Metal GPUs Upgrade Patch set and documentation
+  * Great amounts of help with debugging, and code suggestions
+* [vit9696](https://github.com/vit9696)
+  * Endless amount of help troubleshooting, determining fixes and writing patches
+* [EduCovas](https://github.com/covasedu)
+  * [non-Metal patch set](https://github.com/moraea/non-metal-frameworks) for nVidia Tesla/Fermi/Maxwell/Pascal, AMD TeraScale 1/2, and Intel Core 1st/2nd Generation GPUs
+  * [3802 Metal patch set](https://github.com/moraea/misc-patches/tree/main/3802-Metal-15) and [MetallibSupportPkg](https://github.com/dortania/MetallibSupportPkg) for nVidia Kepler and Intel Core 3rd/4th Generation GPUs
+  * Metal bundle patches and shims for [nVidia Kepler](https://github.com/moraea/misc-patches/tree/main/Kepler%2013%2B), [AMD GCN 1 - 4](https://github.com/moraea/misc-patches/tree/main/GCN%2013%2B), and [AMD GCN 5 (Vega)](https://github.com/moraea/misc-patches/tree/main/vega%2013%2B)
+  * [IOSurface offset patches](https://github.com/moraea/misc-patches/tree/main/Sonoma%2014.4%20IOSurface) for nVidia Kepler, AMD GCN 1 - 5, and Intel Core 3rd - 6th Generation GPUs
+  * [legacy Wi-Fi patch set](https://github.com/moraea/unsupported-wifi-patches) restores functionality for Wi-Fi cards in all 2007 - 2017 models
+  * [T1 patch set](https://github.com/moraea/misc-patches/tree/main/T1-Patch) restores Touch ID, Apple Pay, and other secure functionality in 2016 - 2017 models
+  * AppleGVA downgrade for accelerated video decoding on 2012 - 2016 models
+  * OpenCL and OpenGL downgrade for AMD GCN
+  * [USB 1 patch](https://github.com/moraea/misc-patches/tree/main/IOUSBHostFamily-14.4)
+* [ASentientHedgehog](https://github.com/moosethegoose2213)
+  * [non-Metal patch set](https://github.com/moraea/non-metal-frameworks) for nVidia Tesla/Fermi/Maxwell/Pascal, AMD TeraScale 1/2, and Intel Core 1st/2nd Generation GPUs
+* [ASentientBot](https://github.com/ASentientBot)
+  * [non-Metal patch set](https://github.com/moraea/non-metal-frameworks) for nVidia Tesla/Fermi/Maxwell/Pascal, AMD TeraScale 1/2, and Intel Core 1st/2nd Generation GPUs
+  * [Metal bundle interposer](https://github.com/moraea/misc-patches/tree/main/sequoia%2031001%20interposer) for AMD GCN 1 - 5 and Intel Core 5th/6th Generation GPUs
+  * [dsce](https://github.com/moraea/dsce) and [shared code](https://github.com/moraea/moraea-common) used by some other patches
+* [cdf](https://github.com/cdf)
+  * Mac Pro on OpenCore Patch set and documentation
+  * [Innie](https://github.com/cdf/Innie) and [NightShiftEnabler](https://github.com/cdf/NightShiftEnabler)
+* [Syncretic](https://forums.macrumors.com/members/syncretic.1173816/)
+  * [AAAMouSSE](https://forums.macrumors.com/threads/mp3-1-others-sse-4-2-emulation-to-enable-amd-metal-driver.2206682/), [telemetrap](https://forums.macrumors.com/threads/mp3-1-others-sse-4-2-emulation-to-enable-amd-metal-driver.2206682/post-28447707) and [SurPlus](https://github.com/reenigneorcim/SurPlus)
+* [dosdude1](https://github.com/dosdude1)
+  * Main author of the [original GUI](https://github.com/dortania/OCLP-GUI)
+  * Development of previous patchers, laying out much of what needs to be patched
+* [parrotgeek1](https://github.com/parrotgeek1)
+  * [VMM Patch Set](https://github.com/dortania/OpenCore-Legacy-Patcher/blob/4a8f61a01da72b38a4b2250386cc4b497a31a839/payloads/Config/config.plist#L1222-L1281)
+* [BarryKN](https://github.com/BarryKN)
+  * Development of previous patchers, laying out much of what needs to be patched
+* [mario_bros_tech](https://github.com/mariobrostech) and the rest of the Unsupported Mac Discord
+  * Catalyst that started OpenCore Legacy Patcher
+* [arter97](https://github.com/arter97/)
+  * [SimpleMSR](https://github.com/arter97/SimpleMSR/) to disable firmware throttling in Nehalem+ MacBooks without batteries
+* [Mr.Macintosh](https://mrmacintosh.com)
+  * Endless hours helping architect and troubleshoot many portions of the project
+* [flagers](https://github.com/flagersgit)
+  * Aid with Nvidia Web Driver research and development
+  * [non-Metal patch set](https://github.com/moraea/non-metal-frameworks) for nVidia Tesla/Fermi/Maxwell/Pascal, AMD TeraScale 1/2, and Intel Core 1st/2nd Generation GPUs
+  * [Metal bundle interposer](https://github.com/moraea/misc-patches/tree/main/sequoia%2031001%20interposer) for AMD GCN 1 - 5 and Intel Core 5th/6th Generation GPUs
+  * LegacyRVPL, SnapshotIsKill, etc. to aid in rapid testing and development
+* [joevt](https://github.com/joevt)
+  * [FixPCIeLinkrate](https://github.com/joevt/joevtApps)
+* [Jazzzny](https://github.com/Jazzzny)
+  * Research and various contributions to the project
+  * UEFI Legacy XHCI research and development
+  * NVIDIA OpenCL research and development
+  * `MacBook5,2` research and development
+    * LegacyKeyboardInjector
+  * Pre-Ivy Bridge Aquantia Ethernet Patch
+  * Non-Metal Photo Booth Patch for Monterey+
+  * GUI and Backend Development
+    * Updater UI
+    * macOS Downloader UI
+    * Downloader UI
+    * USB Top Case probing
+    * Developer root patching
+  * Vaulting implementation
+  * macOS 15 3802 Helios Research
+  * UEFI bootx64.efi research
+  * universal2 build research
+  * Various documentation contributions
+* Amazing users who've graciously donate hardware:
+  * [JohnD](https://forums.macrumors.com/members/johnd.53633/) - 2013 Mac Pro
+  * [SpiGAndromeda](https://github.com/SpiGAndromeda) - AMD Vega 64
+  * [turbomacs](https://github.com/turbomacs) - 2014 5k iMac
+  * [vinaypundith](https://forums.macrumors.com/members/vinaypundith.1212357/) - MacBook7,1
+   * [ThatStella7922](https://github.com/ThatStella7922) - 2017 13" MacBook Pro (A1708)
+  * zephar - 2008 Mac Pro
+  * jazo97 - 2011 15" MacBook Pro
+  * And others (reach out if we forgot you!)
+* MacRumors and Unsupported Mac Communities
+  * Endless testing and reporting issues
+* Apple
+  * for macOS and many of the kexts, frameworks and other binaries we reimplemented into newer OSes
