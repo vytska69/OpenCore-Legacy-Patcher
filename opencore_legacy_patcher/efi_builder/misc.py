@@ -429,7 +429,10 @@ class BuildMiscellaneous:
         logging.info("- Injecting AAPL,ig-platform-id 0x87C00005 for Intel UHD 617")
 
         logging.info("- Adding boot args for T2 Mac Sequoia installer")
-        self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -no_compat_check -v amfi=0x80"
+        self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -no_compat_check -v amfi=0x80 dart=0 rtcfx_exclude=00-FF"
+
+        logging.info("- Injecting RTCMemoryFixup.kext for RTC checksum panic prevention")
+        support.BuildSupport(self.model, self.constants, self.config).enable_kext("RTCMemoryFixup.kext", self.constants.rtcmemoryfixup_version, self.constants.rtcmemoryfixup_path)
 
         if self.constants.t2_igfx_fw:
             # igfxfw=2: force-load Intel GPU firmware from the kext instead of relying on

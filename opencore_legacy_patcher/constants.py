@@ -42,6 +42,7 @@ class Constants:
         self.restrictevents_version:     str = "1.1.7"  #      RestrictEvents
         self.featureunlock_version:      str = "1.1.7"  #      FeatureUnlock
         self.debugenhancer_version:      str = "1.1.0"  #      DebugEnhancer
+        self.rtcmemoryfixup_version:     str = "1.0.7"  #      RTCMemoryFixup
         self.cpufriend_version:          str = "1.2.9"  #      CPUFriend
         self.bluetool_version:           str = "2.6.9"  #      BlueToolFixup (BrcmPatchRAM)
         self.cslvfixup_version:          str = "2.6.1"  #      CSLVFixup
@@ -576,6 +577,10 @@ class Constants:
     @property
     def debugenhancer_path(self):
         return self.payload_kexts_path / Path(f"Acidanthera/DebugEnhancer-v{self.debugenhancer_version}-{self.kext_variant}.zip")
+
+    @property
+    def rtcmemoryfixup_path(self):
+        return self.payload_kexts_path / Path(f"Acidanthera/RTCMemoryFixup-v{self.rtcmemoryfixup_version}-{self.kext_variant}.zip")
 
     @property
     def bluetool_path(self):
