@@ -42,7 +42,6 @@ class Constants:
         self.restrictevents_version:     str = "1.1.7"  #      RestrictEvents
         self.featureunlock_version:      str = "1.1.7"  #      FeatureUnlock
         self.debugenhancer_version:      str = "1.1.0"  #      DebugEnhancer
-        self.rtcmemoryfixup_version:     str = "1.0.7"  #      RTCMemoryFixup
         self.cpufriend_version:          str = "1.2.9"  #      CPUFriend
         self.bluetool_version:           str = "2.6.9"  #      BlueToolFixup (BrcmPatchRAM)
         self.cslvfixup_version:          str = "2.6.1"  #      CSLVFixup
@@ -76,7 +75,6 @@ class Constants:
         self.apple_spi_version:     str = "1.0.0"  #  AppleHSSPISupport   (14.4 Beta 1)
         self.apple_spi_hid_version: str = "1.0.0"  #  AppleHSSPIHIDDriver (14.4 Beta 1)
         self.kernel_relay_version:  str = "1.0.0"  #  KernelRelayHost (15.0 Beta 3)
-        self.ibridged_version:      str = "1.0.1"  #  iBridged (T2 BridgeOS coprocessor version injection)
 
         ## Apple - Dortania Modified
         self.bcm570_version:           str = "1.0.2"  # CatalinaBCM5701Ethernet
@@ -198,15 +196,6 @@ class Constants:
         self.vault:          bool = False  # EFI Vault
         self.disable_cs_lv:  bool = False  # Disable Library validation
         self.disable_amfi:   bool = False  # Disable AMFI
-
-        ## T2 Mac Debug Settings (MacBookAir8,1 / 8,2 Sequoia experimental)
-        self.t2_sep_fast_fail:    bool = True   # Delete sep-booted NVRAM so AppleKeyStore fast-fails AKS
-        self.t2_ssdt_inject:      bool = True   # Inject SSDT-T2-SPOOF for apple-coprocessor-version
-        self.t2_sep_panic_patch:  bool = True   # Convert AppleSEPManager panic to early return
-        self.t2_iomapper_mapping: bool = True   # DisableIoMapperMapping (IOMMU passthrough)
-        self.t2_igfx_fw:          bool = True   # igfxfw=2 igfxonln=1 (force GPU firmware + keep iGPU online)
-        self.t2_disable_weg:      bool = False  # Disable WhateverGreen for MBA8 on Sequoia
-        self.t2_debug_logging:    bool = False  # DebugEnhancer.kext + -liludbgall
 
         ## OS Settings
         self.os_support:        float = 12.0
@@ -331,10 +320,6 @@ class Constants:
     @property
     def demux_ssdt_path(self):
         return self.payload_path / Path("ACPI/SSDT-DGPU.aml")
-
-    @property
-    def t2_spoof_ssdt_path(self):
-        return self.payload_path / Path("ACPI/SSDT-T2-SPOOF.aml")
 
     # Drivers
     @property
@@ -503,10 +488,6 @@ class Constants:
         return self.payload_kexts_path / Path(f"Misc/KernelRelayHost-v{self.kernel_relay_version}.zip")
 
     @property
-    def ibridged_path(self):
-        return self.payload_kexts_path / Path(f"Misc/iBridged-v{self.ibridged_version}.zip")
-
-    @property
     def mousse_path(self):
         return self.payload_kexts_path / Path(f"SSE/AAAMouSSE-v{self.mousse_version}.zip")
 
@@ -577,10 +558,6 @@ class Constants:
     @property
     def debugenhancer_path(self):
         return self.payload_kexts_path / Path(f"Acidanthera/DebugEnhancer-v{self.debugenhancer_version}-{self.kext_variant}.zip")
-
-    @property
-    def rtcmemoryfixup_path(self):
-        return self.payload_kexts_path / Path(f"Acidanthera/RTCMemoryFixup-v{self.rtcmemoryfixup_version}-{self.kext_variant}.zip")
 
     @property
     def bluetool_path(self):

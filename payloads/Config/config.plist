@@ -39,14 +39,6 @@
 				<key>Path</key>
 				<string>SSDT-DGPU.aml</string>
 			</dict>
-			<dict>
-				<key>Comment</key>
-				<string>Inject apple-coprocessor-version for T2 Mac AppleT2 initialisation</string>
-				<key>Enabled</key>
-				<false/>
-				<key>Path</key>
-				<string>SSDT-T2-SPOOF.aml</string>
-			</dict>
 		</array>
 		<key>Delete</key>
 		<array/>
@@ -242,44 +234,6 @@
 				<key>TableSignature</key>
 				<data>
 				RFNEVA==
-				</data>
-			</dict>
-			<dict>
-				<key>Base</key>
-				<string></string>
-				<key>BaseSkip</key>
-				<integer>0</integer>
-				<key>Comment</key>
-				<string>SMC_ to SMK_ (T2 VirtualSMC bypass)</string>
-				<key>Count</key>
-				<integer>0</integer>
-				<key>Enabled</key>
-				<false/>
-				<key>Find</key>
-				<data>
-				U01DXw==
-				</data>
-				<key>Limit</key>
-				<integer>0</integer>
-				<key>Mask</key>
-				<data>
-				</data>
-				<key>OemTableId</key>
-				<data>
-				</data>
-				<key>Replace</key>
-				<data>
-				U01LXw==
-				</data>
-				<key>ReplaceMask</key>
-				<data>
-				</data>
-				<key>Skip</key>
-				<integer>0</integer>
-				<key>TableLength</key>
-				<integer>0</integer>
-				<key>TableSignature</key>
-				<data>
 				</data>
 			</dict>
 		</array>
@@ -2005,24 +1959,6 @@
 				<key>PlistPath</key>
 				<string>Contents/Info.plist</string>
 			</dict>
-			<dict>
-				<key>Arch</key>
-				<string>x86_64</string>
-				<key>BundlePath</key>
-				<string>iBridged.kext</string>
-				<key>Comment</key>
-				<string>iBridged - T2 BridgeOS coprocessor version injection</string>
-				<key>Enabled</key>
-				<false/>
-				<key>ExecutablePath</key>
-				<string>Contents/MacOS/iBridged</string>
-				<key>MaxKernel</key>
-				<string></string>
-				<key>MinKernel</key>
-				<string>19.0.0</string>
-				<key>PlistPath</key>
-				<string>Contents/Info.plist</string>
-			</dict>
 		</array>
 		<key>Block</key>
 		<array>
@@ -2605,43 +2541,6 @@
 				<key>Replace</key>
 				<data>
 				RYTk60s=
-				</data>
-				<key>ReplaceMask</key>
-				<data>
-				</data>
-				<key>Skip</key>
-				<integer>0</integer>
-			</dict>
-			<dict>
-				<key>Arch</key>
-				<string>x86_64</string>
-				<key>Base</key>
-				<string></string>
-				<key>Comment</key>
-				<string>Prevent AppleSEPManager SEP timeout panic on T2 Macs (Sequoia)</string>
-				<key>Count</key>
-				<integer>1</integer>
-				<key>Enabled</key>
-				<false/>
-				<key>Find</key>
-				<data>
-				SI0NAAAAAEG4KQMAADHA6AAAAAA=
-				</data>
-				<key>Identifier</key>
-				<string>com.apple.driver.AppleSEPManager</string>
-				<key>Limit</key>
-				<integer>0</integer>
-				<key>Mask</key>
-				<data>
-				////AAAAAP///////////wAAAAA=
-				</data>
-				<key>MaxKernel</key>
-				<string>24.99.99</string>
-				<key>MinKernel</key>
-				<string>24.0.0</string>
-				<key>Replace</key>
-				<data>
-				McBdw5CQkJCQkJCQkJCQkJCQkJA=
 				</data>
 				<key>ReplaceMask</key>
 				<data>
