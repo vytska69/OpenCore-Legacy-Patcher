@@ -464,15 +464,27 @@ class BuildMiscellaneous:
         # machine now reaches WindowServer — but shows a grey screen with only the
         # mouse cursor, because OpenCore does not relay the framebuffer
         # DeviceProperties that bridgeOS injects at UEFI time, so
-        # AppleIntelKBLGraphicsFramebuffer comes up without a framebuffer config.
-        # Inject the exact AAPL,ig-platform-id the genuine hardware reports for the
-        # Intel UHD 617 (ioreg IGPU@2: <0500c087> = 0x87C00005) on the iGPU, and
-        # enable WhateverGreen so the framebuffer initialises.
-        logging.info("- T2 Mac: injecting AAPL,ig-platform-id 0x87C00005 for Intel UHD 617 (grey-screen fix)")
+        # AppleIntelKBLGraphicsFramebuffer comes up without a framebuffer/panel
+        # config. Injecting AAPL,ig-platform-id alone is not enough (already tried);
+        # the genuine hardware also carries the panel power sequence, Y-tiling and
+        # graphic-options. Replicate the FULL set exactly as the real machine's
+        # ioreg reports it on IGPU@2, and enable WhateverGreen.
+        logging.info("- T2 Mac: injecting full Intel UHD 617 framebuffer/panel properties (grey-screen fix)")
         igpu_path = "PciRoot(0x0)/Pci(0x2,0x0)"
         if igpu_path not in self.config["DeviceProperties"]["Add"]:
             self.config["DeviceProperties"]["Add"][igpu_path] = {}
-        self.config["DeviceProperties"]["Add"][igpu_path]["AAPL,ig-platform-id"] = binascii.unhexlify("0500C087")
+        _igpu_props = {
+            "AAPL,ig-platform-id":    "0500C087",  # framebuffer id (0x87C00005)
+            "AAPL,GfxYTile":          "01000000",
+            "graphic-options":        "0C000000",
+            "AAPL00,PanelPowerOn":    "19010000",  # eDP panel power-up sequencing
+            "AAPL00,PanelPowerUp":    "30000000",
+            "AAPL00,PanelPowerDown":  "3C000000",
+            "AAPL00,PanelPowerOff":   "11000000",
+            "AAPL00,PanelCycleDelay": "FA000000",
+        }
+        for _key, _hex in _igpu_props.items():
+            self.config["DeviceProperties"]["Add"][igpu_path][_key] = binascii.unhexlify(_hex)
 
         if not support.BuildSupport(self.model, self.constants, self.config).get_kext_by_bundle_path("WhateverGreen.kext")["Enabled"] is True:
             logging.info("- T2 Mac: enabling WhateverGreen for iGPU framebuffer")
