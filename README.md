@@ -5,17 +5,36 @@
 
 > **⚠️ EXPERIMENTAL FORK** — This is an experimental fork of [Dortania's OpenCore Legacy Patcher](https://github.com/dortania/OpenCore-Legacy-Patcher) that attempts to add **T2 Mac support** (MacBook Air 2018/2019). These changes are **not** officially supported and may cause kernel panics or other issues. Use at your own risk.
 
-## T2 Mac Support — Status & TODO
+## T2 Mac Support — Status
 
-> **🚧 Work in progress — not ready for general use.**
+> **🚧 Experimental — MacBookAir8,1 / 8,2 (MacBook Air 2018/2019). Not ready for general use.**
 
-- [x] USB boot
-- [x] T2 kext injection
-- [x] Boot args, OC logging, panic improvements
-- [x] XhciDxe.efi + UsbBusDxe.efi
+- [x] USB boot entry appears in the T2 Startup Manager (`EFI/BOOT/BOOTx64.efi`)
+- [x] Kext injection on Sequoia (AMFIPass for the Max-OS = Sonoma bypass)
+- [x] **SEP / AppleKeyStore "sks request timeout" hang cleared** — the T1 keystore
+      stack (AppleKeyStore / AppleSSE / AppleCredentialManager + corecrypto_T1 +
+      KernelRelayHost) is substituted for the T2 versions, so the boot no longer
+      depends on the SEP mailbox handshake that hangs under OpenCore. This is the
+      wall that blocks the upstream project.
+- [x] **Boots past the SEP to the installer** — reaches WindowServer / the Setup
+      Assistant language chooser (VoiceOver active)
+- [ ] Internal display renders — currently a grey screen with a live cursor;
+      injecting the genuine Intel UHD 617 framebuffer + panel DeviceProperties
+      that bridgeOS normally supplies (`AAPL,ig-platform-id`, `AAPL00,PanelPower*`)
 - [ ] USB-Map.kext (MacBookAir8,1 / 8,2)
-- [ ] Installer boots
 - [ ] Post-install + full OS usability
+
+### How it works (T2 diagnosis)
+
+The failure that blocks T2 Macs upstream is `AppleSEPManager` timing out on
+`AppleKeyStore` SKS requests to the Secure Enclave (`AppleSEPManagerIntel.cpp`),
+because the T2's SEP is driven over an MMIO + IOMMU + MSI mailbox that does not
+survive the OpenCore → `boot.efi` → kernel handoff on these models. Rather than
+patch the panic (which only converts it to a silent hang), this fork replaces
+the whole keystore stack with the older T1-era kexts, which do not use that
+mailbox. A "Save T2 boot diagnostics" button (Developer tab) collects the NVRAM
+`preoslog` / panic-info, kernel panic reports, and the OpenCore log + SysReport
+for offline analysis.
 
 A Python-based project revolving around [Acidanthera's OpenCorePkg](https://github.com/acidanthera/OpenCorePkg) and [Lilu](https://github.com/acidanthera/Lilu) for both running and unlocking features in macOS on supported and unsupported Macs.
 
