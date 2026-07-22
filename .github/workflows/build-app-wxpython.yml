@@ -12,10 +12,14 @@ on:
   release:
     types: [published]
 
+concurrency:
+  group: build-wxpython-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     name: Build wxPython
-    runs-on: macos-13
+    runs-on: macos-latest
     timeout-minutes: 120
     permissions:
       contents: write
