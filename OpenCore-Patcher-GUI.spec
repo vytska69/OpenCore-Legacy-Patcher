@@ -55,7 +55,7 @@ exe = EXE(pyz,
           upx=True,
           console=False,
           disable_windowed_traceback=False,
-          target_arch=None,  # None = native arch; universal2 requires fat wxpython wheels
+          target_arch='x86_64',  # x86_64 so the app runs on Intel Macs (OCLP's target) natively and on Apple Silicon via Rosetta 2; wxPython ships no universal2 wheel, and GitHub no longer offers Intel macOS runners, so CI builds x86_64 under `arch -x86_64`
           codesign_identity=None,
           entitlements_file=None)
 
