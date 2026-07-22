@@ -381,11 +381,26 @@ class BuildMiscellaneous:
     def _t1_handling(self) -> None:
         """
         T1 Security Chip Handler
+
+        Also applied to the MacBookAir8,x (T2) as an experimental SEP bypass.
+        The native T2 keystore stack (AppleKeyStore/AppleSSE/AppleCredential-
+        Manager) drives the Secure Enclave over the SEP mailbox, and on these
+        models that handshake times out after ExitBootServices
+        (AppleSEPManagerIntel.cpp:809). Substituting the older T1-era keystore
+        stack — the same one OCLP injects on genuine T1 Macs, which does not
+        perform the T2 SKS mailbox handshake — is the most principled attempt
+        at getting past that hang, and is what an April 2026 build test used
+        (confirmed reaching EXITBS in its OpenCore log). Whether it clears the
+        post-EXITBS SEP timeout must be verified on hardware.
         """
-        if self.model not in ["MacBookPro13,2", "MacBookPro13,3", "MacBookPro14,2", "MacBookPro14,3"]:
+        _t1_models = ["MacBookPro13,2", "MacBookPro13,3", "MacBookPro14,2", "MacBookPro14,3"]
+        if self.model not in _t1_models and self.model not in model_array.T2_MacBookAir:
             return
 
-        logging.info("- Enabling T1 Security Chip support")
+        if self.model in model_array.T2_MacBookAir:
+            logging.info("- Substituting T1 keystore stack on T2 Mac (SEP bypass attempt)")
+        else:
+            logging.info("- Enabling T1 Security Chip support")
 
         support.BuildSupport(self.model, self.constants, self.config).get_item_by_kv(self.config["Kernel"]["Block"], "Identifier", "com.apple.driver.AppleSSE")["Enabled"] = True
         support.BuildSupport(self.model, self.constants, self.config).get_item_by_kv(self.config["Kernel"]["Block"], "Identifier", "com.apple.driver.AppleKeyStore")["Enabled"] = True
