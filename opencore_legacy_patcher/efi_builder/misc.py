@@ -453,8 +453,9 @@ class BuildMiscellaneous:
         logging.info("- T2 Mac: disabling watchdog so the memory-map dump completes")
         self.config["Misc"]["Debug"]["DisableWatchDog"] = True
 
-        # -v surfaces XNU verbose output on screen; -no_compat_check lets the
-        # Sequoia installer proceed past the model check so the boot reaches
-        # (and logs) the memory-map handoff before the SEP timeout.
-        logging.info("- T2 Mac: adding -v -no_compat_check for verbose installer boot")
-        self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -no_compat_check -v"
+        # -no_compat_check lets the Sequoia installer proceed past the model
+        # check so the boot reaches the memory-map handoff before the SEP
+        # timeout. Verbose (-v) is forced separately via verbose_debug in
+        # build._build_efi(), so it is not added here (avoids a duplicate -v).
+        logging.info("- T2 Mac: adding -no_compat_check for the Sequoia installer")
+        self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -no_compat_check"

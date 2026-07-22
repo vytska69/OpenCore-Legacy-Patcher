@@ -69,6 +69,11 @@ class BuildOpenCore:
         if self.model in model_array.T2_MacBookAir:
             logging.info("- T2 Mac: forcing DEBUG OpenCore for memory-map diagnostics")
             self.constants.opencore_debug = True
+            # Force verbose boot so the (post-EXITBS) kernel output is on screen
+            # and the hang/panic point stays visible. Routed through the standard
+            # verbose_debug path so _debug_handling() adds -v exactly once.
+            logging.info("- T2 Mac: forcing verbose boot (-v)")
+            self.constants.verbose_debug = True
 
         self._generate_base()
         self._set_revision()
