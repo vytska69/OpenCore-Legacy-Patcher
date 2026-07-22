@@ -38,6 +38,16 @@ jobs:
       - name: Install script dependencies
         run: /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 -m pip install requests packaging
 
+      - name: Authenticate GitHub API to avoid rate limiting
+        run: |
+          # The official update scripts hit api.github.com unauthenticated
+          # (60 req/hr per IP), which the shared runner exhausts. requests reads
+          # ~/.netrc automatically, so authenticate the API host with the
+          # Actions token (5000 req/hr). Only api.github.com is listed, so the
+          # release-asset downloads on github.com stay unauthenticated.
+          umask 177
+          printf 'machine api.github.com\n  login x-access-token\n  password %s\n' "${{ github.token }}" > "$HOME/.netrc"
+
       - name: Update Acidanthera kexts (official Update-Kexts.command)
         run: /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 payloads/Kexts/Update-Kexts.command
 
