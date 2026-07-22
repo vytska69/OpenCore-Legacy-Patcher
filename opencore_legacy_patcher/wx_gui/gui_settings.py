@@ -84,8 +84,10 @@ class SettingsFrame(wx.Frame):
         sizer.Add(model_description, 0, wx.ALIGN_CENTER | wx.ALL, 5)
 
         tabs = list(self.settings.keys())
-        if not Path("~/.dortania_developer").expanduser().exists():
-            tabs.remove("Developer")
+        # Developer tab is always shown in this build so the diagnostic tools
+        # (e.g. "Save preoslog to file") are reachable without first creating
+        # ~/.dortania_developer. This only affects tab visibility — other
+        # developer-only behaviours still gate on that file independently.
         for tab in tabs:
             panel = wx.Panel(notebook)
             notebook.AddPage(panel, tab)
