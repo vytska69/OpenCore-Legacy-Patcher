@@ -148,8 +148,13 @@ class tui_disk_installation:
 
         if self.constants.boot_efi is True:
             logging.info("Converting Bootstrap to BOOTx64.efi")
-            subprocess_wrapper.run_as_root(["/bin/rm", "-rf", mount_path / Path("EFI/BOOT")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            Path(mount_path / Path("EFI/BOOT")).mkdir(exist_ok=True)
+            # Use the same plain-subprocess /bin tools as the surrounding EFI
+            # operations. Python's native Path.mkdir() raises EPERM on the FAT
+            # (msdos) EFI volume where /bin/mkdir succeeds, and run_as_root here
+            # is both unnecessary (the mount is already writable, like the cp
+            # above) and can stall on an auth prompt.
+            subprocess.run(["/bin/rm", "-rf", mount_path / Path("EFI/BOOT")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            subprocess.run(["/bin/mkdir", "-p", mount_path / Path("EFI/BOOT")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             subprocess.run(["/bin/mv", mount_path / Path("System/Library/CoreServices/boot.efi"), mount_path / Path("EFI/BOOT/BOOTx64.efi")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             subprocess.run(["/bin/rm", "-rf", mount_path / Path("System")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
