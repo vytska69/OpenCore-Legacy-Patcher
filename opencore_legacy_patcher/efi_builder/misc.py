@@ -468,7 +468,14 @@ class BuildMiscellaneous:
         # config. Injecting AAPL,ig-platform-id alone is not enough (already tried);
         # the genuine hardware also carries the panel power sequence, Y-tiling and
         # graphic-options. Replicate the FULL set exactly as the real machine's
-        # ioreg reports it on IGPU@2, and enable WhateverGreen.
+        # ioreg reports it on IGPU@2.
+        #
+        # WhateverGreen is intentionally NOT injected: this is a genuine Mac, and
+        # the native ig-platform-id 0x87C00005 already provides the correct
+        # connectors (ioreg: con0 eDP type 0x02, con1/con2 DP type 0x0400). WEG
+        # applies hackintosh framebuffer patches that commonly cause exactly this
+        # grey-screen on real Macs, so the stock AppleIntelKBLGraphicsFramebuffer
+        # is left to drive the panel from the injected native properties alone.
         logging.info("- T2 Mac: injecting full Intel UHD 617 framebuffer/panel properties (grey-screen fix)")
         igpu_path = "PciRoot(0x0)/Pci(0x2,0x0)"
         if igpu_path not in self.config["DeviceProperties"]["Add"]:
@@ -485,7 +492,3 @@ class BuildMiscellaneous:
         }
         for _key, _hex in _igpu_props.items():
             self.config["DeviceProperties"]["Add"][igpu_path][_key] = binascii.unhexlify(_hex)
-
-        if not support.BuildSupport(self.model, self.constants, self.config).get_kext_by_bundle_path("WhateverGreen.kext")["Enabled"] is True:
-            logging.info("- T2 Mac: enabling WhateverGreen for iGPU framebuffer")
-            support.BuildSupport(self.model, self.constants, self.config).enable_kext("WhateverGreen.kext", self.constants.whatevergreen_version, self.constants.whatevergreen_path)
