@@ -884,14 +884,14 @@ class SettingsFrame(wx.Frame):
                         "Export constants.py values to a txt file.",
                     ],
                 },
-                "Save preoslog to file": {
+                "Save T2 boot diagnostics": {
                     "type": "button",
                     "function": self.on_save_preoslog,
                     "description": [
-                        "Dump the AAPL,preoslog NVRAM variable",
-                        "(early kernel boot log from the previous",
-                        "boot, incl. post-EXITBS SEP/panic output)",
-                        "to a text file for T2 diagnostics.",
+                        "Collect every post-EXITBS boot diagnostic",
+                        "into one folder: NVRAM preoslog + panic-info,",
+                        "kernel panic reports, and the OpenCore log +",
+                        "SysReport from a mounted EFI (mount it first).",
                     ],
                 },
 
@@ -1393,83 +1393,107 @@ Hardware Information:
 
 
     def on_save_preoslog(self, event: wx.Event) -> None:
-        # Collect every post-ExitBootServices boot diagnostic macOS may have kept
-        # after a failed T2 boot. The SEP failure happens in the kernel, after
-        # OpenCore's file log stops at EXITBS, so any evidence lives in NVRAM
-        # (AAPL,preoslog / aapl,panic-info) or — if the boot actually PANICKED —
-        # in a kernel panic report on disk. A silent HANG writes none of these,
-        # in which case only a screen recording of the verbose output captures it.
+        # Collect EVERY post-ExitBootServices boot diagnostic into one folder, as
+        # separate files, after a failed T2 boot:
+        #   - NVRAM AAPL,preoslog + aapl,panic-info (early kernel log / last panic)
+        #   - recent kernel panic reports from DiagnosticReports (if it panicked)
+        #   - OpenCore's own pre-EXITBS logs (opencore-*.txt) and SysReport from a
+        #     mounted EFI, so the OC-side memory map and ACPI dumps are captured too
+        # A silent HANG writes none of the kernel-side sources; only a screen
+        # recording captures that, but the OC log + SysReport are still useful.
+        import shutil
+        import time
 
         def _printable(data) -> str:
             if isinstance(data, str):
                 data = data.encode("latin-1", "ignore")
             return "".join(chr(b) if (0x20 <= b < 0x7F or b in (0x09, 0x0A)) else "" for b in data)
 
-        sections = []
-        found = []
+        with wx.DirDialog(self.parent, "Choose a folder to save the T2 diagnostics into", style=wx.DD_DEFAULT_STYLE) as dirDialog:
+            if dirDialog.ShowModal() == wx.ID_CANCEL:
+                return
+            base = Path(dirDialog.GetPath()) / f"OCLP-T2-Diagnostics-{time.strftime('%Y%m%d-%H%M%S')}"
 
-        # 1) NVRAM variables via the nvram tool (reads what IORegistry may not expose)
-        for var in ("AAPL,preoslog", "aapl,panic-info"):
+        base.mkdir(parents=True, exist_ok=True)
+        collected = []
+
+        # 1) NVRAM variables via the nvram tool
+        for var, fname in (("AAPL,preoslog", "preoslog.txt"), ("aapl,panic-info", "panic-info.txt")):
             try:
                 r = subprocess.run(["/usr/sbin/nvram", var], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                if r.returncode == 0 and r.stdout and _printable(r.stdout).strip():
-                    sections.append(f"===== nvram {var} =====\n{_printable(r.stdout)}\n")
-                    found.append(f"nvram {var}")
+                text = _printable(r.stdout) if r.returncode == 0 else ""
+                if text.strip():
+                    (base / fname).write_text(text)
+                    collected.append(fname)
             except Exception:
                 pass
 
-        # 2) AAPL,preoslog via IORegistry (fallback, no privilege needed)
-        raw = utilities.get_nvram("AAPL,preoslog")
-        if raw and not any("preoslog" in f for f in found):
-            sections.append(f"===== IORegistry AAPL,preoslog =====\n{_printable(raw)}\n")
-            found.append("IORegistry AAPL,preoslog")
+        # 2) AAPL,preoslog via IORegistry (fallback if the nvram read came back empty)
+        if "preoslog.txt" not in collected:
+            raw = utilities.get_nvram("AAPL,preoslog")
+            if raw:
+                (base / "preoslog.txt").write_text(_printable(raw))
+                collected.append("preoslog.txt")
 
-        # 3) Recent kernel panic reports on disk (present only if the boot panicked)
+        # 3) Recent kernel panic reports (present only if the boot panicked)
         for reports_dir in (Path("/Library/Logs/DiagnosticReports"), Path("~/Library/Logs/DiagnosticReports").expanduser()):
             try:
                 panics = [
                     p for p in reports_dir.glob("*")
                     if p.suffix in (".panic", ".ips") and ("kernel" in p.name.lower() or "panic" in p.name.lower())
                 ]
-                for p in sorted(panics, key=lambda p: p.stat().st_mtime, reverse=True)[:3]:
+                for p in sorted(panics, key=lambda p: p.stat().st_mtime, reverse=True)[:5]:
                     try:
-                        sections.append(f"===== {p} =====\n{p.read_text(errors='replace')}\n")
-                        found.append(p.name)
+                        shutil.copy(p, base / p.name)
+                        collected.append(p.name)
                     except Exception:
                         pass
             except Exception:
                 pass
 
-        if not sections:
+        # 4) OpenCore pre-EXITBS logs + SysReport from a mounted EFI (mount it first
+        #    via the installer/Mount EFI if /Volumes/EFI is not already present)
+        for efi_oc in (Path("/Volumes/EFI/EFI/OC"), Path("/Volumes/EFI 1/EFI/OC")):
+            if not efi_oc.exists():
+                continue
+            for log in sorted(efi_oc.glob("opencore-*.txt"), key=lambda p: p.stat().st_mtime, reverse=True)[:3]:
+                try:
+                    shutil.copy(log, base / log.name)
+                    collected.append(log.name)
+                except Exception:
+                    pass
+            sysreport = efi_oc / "SysReport"
+            if sysreport.exists():
+                try:
+                    shutil.copytree(sysreport, base / "SysReport", dirs_exist_ok=True)
+                    collected.append("SysReport/")
+                except Exception:
+                    pass
+            break
+
+        if not collected:
+            try:
+                base.rmdir()
+            except Exception:
+                pass
             wx.MessageDialog(
                 self.parent,
                 "No boot diagnostics were found.\n\n"
-                "Nothing is in NVRAM (AAPL,preoslog / aapl,panic-info) and there "
-                "are no recent kernel panic reports on disk. This almost always "
-                "means the failed boot HUNG rather than panicked, so macOS wrote "
-                "nothing to NVRAM or disk.\n\n"
-                "For a silent hang, record the screen (video) during the verbose "
-                "boot and capture the last lines before it freezes — that is the "
-                "only place the hang point is visible.",
+                "Nothing is in NVRAM (AAPL,preoslog / aapl,panic-info), there are no "
+                "recent kernel panic reports, and no OpenCore log/SysReport was found "
+                "on a mounted EFI.\n\n"
+                "If the boot HUNG (verbose text froze) macOS writes nothing kernel-side "
+                "— photograph the frozen screen for that. For the OpenCore log and "
+                "SysReport, mount the EFI first (Build → Install, or Mount EFI) so "
+                "/Volumes/EFI exists, then run this again.",
                 "Nothing captured", wx.OK | wx.ICON_WARNING,
             ).ShowModal()
             return
 
-        report = "\n".join(sections)
-        with wx.FileDialog(
-            self.parent, "Save T2 boot diagnostics", wildcard="Text files (*.txt)|*.txt",
-            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT, defaultFile="t2-boot-diagnostics.txt",
-        ) as fileDialog:
-            if fileDialog.ShowModal() == wx.ID_CANCEL:
-                return
-            pathname = fileDialog.GetPath()
-            logging.info(f"Saving T2 diagnostics ({len(report)} chars) to {pathname}")
-            with open(pathname, "w") as file:
-                file.write(report)
-
+        logging.info(f"Saved T2 diagnostics to {base}: {collected}")
         wx.MessageDialog(
             self.parent,
-            f"Saved diagnostics to:\n{pathname}\n\nSources found:\n- " + "\n- ".join(found),
+            f"Saved diagnostics to:\n{base}\n\nFiles collected:\n- " + "\n- ".join(collected),
             "Success", wx.OK | wx.ICON_INFORMATION,
         ).ShowModal()
 
