@@ -1393,47 +1393,83 @@ Hardware Information:
 
 
     def on_save_preoslog(self, event: wx.Event) -> None:
-        # AAPL,preoslog is the early-boot kernel log the previous boot stored in
-        # NVRAM. It survives across reboots and captures post-ExitBootServices
-        # kernel output (e.g. the T2 AppleKeyStore/AppleSEPManager "sks request
-        # timeout" panic) that OpenCore's own file log cannot reach because OC
-        # logging stops at ExitBootServices. Read it via IORegistry, no
-        # privilege escalation required.
+        # Collect every post-ExitBootServices boot diagnostic macOS may have kept
+        # after a failed T2 boot. The SEP failure happens in the kernel, after
+        # OpenCore's file log stops at EXITBS, so any evidence lives in NVRAM
+        # (AAPL,preoslog / aapl,panic-info) or — if the boot actually PANICKED —
+        # in a kernel panic report on disk. A silent HANG writes none of these,
+        # in which case only a screen recording of the verbose output captures it.
+
+        def _printable(data) -> str:
+            if isinstance(data, str):
+                data = data.encode("latin-1", "ignore")
+            return "".join(chr(b) if (0x20 <= b < 0x7F or b in (0x09, 0x0A)) else "" for b in data)
+
+        sections = []
+        found = []
+
+        # 1) NVRAM variables via the nvram tool (reads what IORegistry may not expose)
+        for var in ("AAPL,preoslog", "aapl,panic-info"):
+            try:
+                r = subprocess.run(["/usr/sbin/nvram", var], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                if r.returncode == 0 and r.stdout and _printable(r.stdout).strip():
+                    sections.append(f"===== nvram {var} =====\n{_printable(r.stdout)}\n")
+                    found.append(f"nvram {var}")
+            except Exception:
+                pass
+
+        # 2) AAPL,preoslog via IORegistry (fallback, no privilege needed)
         raw = utilities.get_nvram("AAPL,preoslog")
-        if raw is None:
+        if raw and not any("preoslog" in f for f in found):
+            sections.append(f"===== IORegistry AAPL,preoslog =====\n{_printable(raw)}\n")
+            found.append("IORegistry AAPL,preoslog")
+
+        # 3) Recent kernel panic reports on disk (present only if the boot panicked)
+        for reports_dir in (Path("/Library/Logs/DiagnosticReports"), Path("~/Library/Logs/DiagnosticReports").expanduser()):
+            try:
+                panics = [
+                    p for p in reports_dir.glob("*")
+                    if p.suffix in (".panic", ".ips") and ("kernel" in p.name.lower() or "panic" in p.name.lower())
+                ]
+                for p in sorted(panics, key=lambda p: p.stat().st_mtime, reverse=True)[:3]:
+                    try:
+                        sections.append(f"===== {p} =====\n{p.read_text(errors='replace')}\n")
+                        found.append(p.name)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+        if not sections:
             wx.MessageDialog(
                 self.parent,
-                "AAPL,preoslog was not found in NVRAM.\n\n"
-                "It is only populated when the previous boot recorded an early "
-                "kernel log. Boot the target OS (even if it hangs), then run this "
-                "from a subsequent boot before the variable is cleared.",
-                "No preoslog found", wx.OK | wx.ICON_WARNING,
+                "No boot diagnostics were found.\n\n"
+                "Nothing is in NVRAM (AAPL,preoslog / aapl,panic-info) and there "
+                "are no recent kernel panic reports on disk. This almost always "
+                "means the failed boot HUNG rather than panicked, so macOS wrote "
+                "nothing to NVRAM or disk.\n\n"
+                "For a silent hang, record the screen (video) during the verbose "
+                "boot and capture the last lines before it freezes — that is the "
+                "only place the hang point is visible.",
+                "Nothing captured", wx.OK | wx.ICON_WARNING,
             ).ShowModal()
             return
 
-        # The variable is a raw buffer with binary framing around printable log
-        # lines (same content `nvram AAPL,preoslog | strings` prints). Keep
-        # printable ASCII, tabs and newlines; drop the framing bytes.
-        if isinstance(raw, str):
-            raw = raw.encode("latin-1", "ignore")
-        text = "".join(
-            chr(b) if (0x20 <= b < 0x7F or b in (0x09, 0x0A)) else ""
-            for b in raw
-        )
-
+        report = "\n".join(sections)
         with wx.FileDialog(
-            self.parent, "Save preoslog", wildcard="Text files (*.txt)|*.txt",
-            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT, defaultFile="preoslog.txt",
+            self.parent, "Save T2 boot diagnostics", wildcard="Text files (*.txt)|*.txt",
+            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT, defaultFile="t2-boot-diagnostics.txt",
         ) as fileDialog:
             if fileDialog.ShowModal() == wx.ID_CANCEL:
                 return
             pathname = fileDialog.GetPath()
-            logging.info(f"Saving preoslog ({len(raw)} bytes) to {pathname}")
+            logging.info(f"Saving T2 diagnostics ({len(report)} chars) to {pathname}")
             with open(pathname, "w") as file:
-                file.write(text)
+                file.write(report)
 
         wx.MessageDialog(
-            self.parent, f"Saved preoslog to:\n{pathname}",
+            self.parent,
+            f"Saved diagnostics to:\n{pathname}\n\nSources found:\n- " + "\n- ".join(found),
             "Success", wx.OK | wx.ICON_INFORMATION,
         ).ShowModal()
 
