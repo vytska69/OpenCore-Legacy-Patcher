@@ -175,7 +175,10 @@ class GenerateKexts:
     def _get_latest_release(self, kext_folder, kext_name, override_kext_zip_name=None):
         # Get latest release from GitHub API
         repo_url = KEXT_DICTIONARY[kext_folder][kext_name]["Repository"].replace("https://github.com", "https://api.github.com/repos")
-        latest_release = requests.get(f"{repo_url}/releases/latest").json()
+        # Authenticate with GITHUB_TOKEN when present (CI) so api.github.com does
+        # not hit the 60 req/hr unauthenticated limit.
+        _headers = {"Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}"} if os.environ.get("GITHUB_TOKEN") else {}
+        latest_release = requests.get(f"{repo_url}/releases/latest", headers=_headers).json()
 
         for variant in ["RELEASE", "DEBUG"]:
 

@@ -8,11 +8,16 @@
 # - Run script
 
 
+import os
 import subprocess
 from pathlib import Path
 import requests
 
 REPO_URL = "https://api.github.com/repos/acidanthera/OpenCorePkg/releases/latest"
+
+# Authenticate with GITHUB_TOKEN when present (CI) so api.github.com does not
+# hit the 60 req/hr unauthenticated rate limit.
+GITHUB_HEADERS = {"Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}"} if os.environ.get("GITHUB_TOKEN") else {}
 
 BUILD_VARIANTS = [
     "DEBUG",
@@ -184,7 +189,7 @@ class GenerateOpenCore:
     def download_new_binaries(self, variant):
         # Get latest release
         print(f"Getting latest {variant}...")
-        latest_release = requests.get(REPO_URL).json()
+        latest_release = requests.get(REPO_URL, headers=GITHUB_HEADERS).json()
 
         # Get latest release download url
         print(f"   Getting latest {variant} download url...")
