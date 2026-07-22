@@ -24,7 +24,8 @@ from ..support import (
     defaults,
     generate_smbios,
     network_handler,
-    subprocess_wrapper
+    subprocess_wrapper,
+    utilities
 )
 from ..datasets import (
     model_array,
@@ -881,6 +882,16 @@ class SettingsFrame(wx.Frame):
                         "Export constants.py values to a txt file.",
                     ],
                 },
+                "Save preoslog to file": {
+                    "type": "button",
+                    "function": self.on_save_preoslog,
+                    "description": [
+                        "Dump the AAPL,preoslog NVRAM variable",
+                        "(early kernel boot log from the previous",
+                        "boot, incl. post-EXITBS SEP/panic output)",
+                        "to a text file for T2 diagnostics.",
+                    ],
+                },
 
                 "Developer Root Volume Patching": {
                     "type": "title",
@@ -1377,6 +1388,52 @@ Hardware Information:
             logging.info(f"Saving constants to {pathname}")
             with open(pathname, 'w') as file:
                 file.write(pprint.pformat(vars(self.constants), indent=4))
+
+
+    def on_save_preoslog(self, event: wx.Event) -> None:
+        # AAPL,preoslog is the early-boot kernel log the previous boot stored in
+        # NVRAM. It survives across reboots and captures post-ExitBootServices
+        # kernel output (e.g. the T2 AppleKeyStore/AppleSEPManager "sks request
+        # timeout" panic) that OpenCore's own file log cannot reach because OC
+        # logging stops at ExitBootServices. Read it via IORegistry, no
+        # privilege escalation required.
+        raw = utilities.get_nvram("AAPL,preoslog")
+        if raw is None:
+            wx.MessageDialog(
+                self.parent,
+                "AAPL,preoslog was not found in NVRAM.\n\n"
+                "It is only populated when the previous boot recorded an early "
+                "kernel log. Boot the target OS (even if it hangs), then run this "
+                "from a subsequent boot before the variable is cleared.",
+                "No preoslog found", wx.OK | wx.ICON_WARNING,
+            ).ShowModal()
+            return
+
+        # The variable is a raw buffer with binary framing around printable log
+        # lines (same content `nvram AAPL,preoslog | strings` prints). Keep
+        # printable ASCII, tabs and newlines; drop the framing bytes.
+        if isinstance(raw, str):
+            raw = raw.encode("latin-1", "ignore")
+        text = "".join(
+            chr(b) if (0x20 <= b < 0x7F or b in (0x09, 0x0A)) else ""
+            for b in raw
+        )
+
+        with wx.FileDialog(
+            self.parent, "Save preoslog", wildcard="Text files (*.txt)|*.txt",
+            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT, defaultFile="preoslog.txt",
+        ) as fileDialog:
+            if fileDialog.ShowModal() == wx.ID_CANCEL:
+                return
+            pathname = fileDialog.GetPath()
+            logging.info(f"Saving preoslog ({len(raw)} bytes) to {pathname}")
+            with open(pathname, "w") as file:
+                file.write(text)
+
+        wx.MessageDialog(
+            self.parent, f"Saved preoslog to:\n{pathname}",
+            "Success", wx.OK | wx.ICON_INFORMATION,
+        ).ShowModal()
 
 
     def on_test_exception(self, event: wx.Event) -> None:
