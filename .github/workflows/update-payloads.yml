@@ -1,0 +1,57 @@
+name: Update payloads (OpenCore + kexts)
+
+# Runs OCLP's own official update scripts on a runner with internet access
+# (the local dev/agent environment cannot reach the acidanthera GitHub
+# releases). Updates the prebuilt OpenCore binaries and the Acidanthera kext
+# payloads to their latest releases and bumps the matching versions in
+# constants.py. The T1 keystore stack (payloads/Kexts/Misc/*) is NOT in the
+# kext dictionary, so it is left untouched.
+#
+# Manual trigger only. After it pushes, the normal Build + Validate workflows
+# run on the new commit. Re-test the T2 boot afterwards — validation checks
+# config correctness, not runtime boot behaviour.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-payloads
+  cancel-in-progress: true
+
+jobs:
+  update:
+    name: Update payloads
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Universal Python 3.14
+        run: |
+          curl -fsSL -o python-installer.pkg https://www.python.org/ftp/python/3.14.0/python-3.14.0-macos11.pkg
+          sudo installer -pkg python-installer.pkg -target /
+          echo "/Library/Frameworks/Python.framework/Versions/3.14/bin" >> $GITHUB_PATH
+
+      - name: Install script dependencies
+        run: /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 -m pip install requests packaging
+
+      - name: Update Acidanthera kexts (official Update-Kexts.command)
+        run: /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 payloads/Kexts/Update-Kexts.command
+
+      - name: Update OpenCore (official Update-OpenCore.command)
+        run: /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 payloads/OpenCore/Update-OpenCore.command
+
+      - name: Commit and push updated payloads
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No payload changes — everything already at latest."
+          else
+            git commit -m "payloads: update OpenCore + Acidanthera kexts to latest"
+            git push
+          fi
