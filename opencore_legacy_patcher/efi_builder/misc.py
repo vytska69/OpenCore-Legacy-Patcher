@@ -459,3 +459,21 @@ class BuildMiscellaneous:
         # build._build_efi(), so it is not added here (avoids a duplicate -v).
         logging.info("- T2 Mac: adding -no_compat_check for the Sequoia installer")
         self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -no_compat_check"
+
+        # With the T1 keystore stack in place the SEP hang is cleared and the
+        # machine now reaches WindowServer — but shows a grey screen with only the
+        # mouse cursor, because OpenCore does not relay the framebuffer
+        # DeviceProperties that bridgeOS injects at UEFI time, so
+        # AppleIntelKBLGraphicsFramebuffer comes up without a framebuffer config.
+        # Inject the exact AAPL,ig-platform-id the genuine hardware reports for the
+        # Intel UHD 617 (ioreg IGPU@2: <0500c087> = 0x87C00005) on the iGPU, and
+        # enable WhateverGreen so the framebuffer initialises.
+        logging.info("- T2 Mac: injecting AAPL,ig-platform-id 0x87C00005 for Intel UHD 617 (grey-screen fix)")
+        igpu_path = "PciRoot(0x0)/Pci(0x2,0x0)"
+        if igpu_path not in self.config["DeviceProperties"]["Add"]:
+            self.config["DeviceProperties"]["Add"][igpu_path] = {}
+        self.config["DeviceProperties"]["Add"][igpu_path]["AAPL,ig-platform-id"] = binascii.unhexlify("0500C087")
+
+        if not support.BuildSupport(self.model, self.constants, self.config).get_kext_by_bundle_path("WhateverGreen.kext")["Enabled"] is True:
+            logging.info("- T2 Mac: enabling WhateverGreen for iGPU framebuffer")
+            support.BuildSupport(self.model, self.constants, self.config).enable_kext("WhateverGreen.kext", self.constants.whatevergreen_version, self.constants.whatevergreen_path)
