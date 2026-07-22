@@ -8,10 +8,17 @@ on:
   release:
     types: [published]
 
+concurrency:
+  group: validate-external-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     name: Validate
-    runs-on: macos-13
+    # macos-13 (Intel) is no longer provisioned and queues forever. ocvalidate
+    # is a universal binary and validation is arch-agnostic, so macos-latest
+    # (arm64) works without any x86_64/Rosetta handling.
+    runs-on: macos-latest
     if: github.repository_owner != 'dortania'
 
     steps:
