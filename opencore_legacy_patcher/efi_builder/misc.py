@@ -418,28 +418,17 @@ class BuildMiscellaneous:
         """
         T2 Security Chip Handler (MacBookAir8,1 / 8,2) — diagnostic build
 
-        Booting macOS through OpenCore on these models is a known-unsolved
-        problem. On a T2 Mac the Secure Enclave firmware blob is left in a
-        reserved memory region by iBoot/bridgeOS, and the macOS kernel must
-        re-load and re-bootstrap the SEP across the boot.efi -> kernel
-        handoff. On the MacBookAir8,x specifically that handoff fails, so
-        AppleKeyStore's SKS requests to the SEP time out and panic:
-
-            "AppleSEPManager panic for "AppleKeyStore": sks request timeout"
-            @AppleSEPManagerIntel.cpp:809
-
-        This is a firmware-level handoff failure below macOS; it cannot be
-        fixed from injected kexts, ACPI, or boot-args (patching out the panic
-        only converts it into a silent hang, since AppleKeyStore still has no
-        keys). Other T2 models (MacBookPro15,2, Macmini8,1) survive the same
-        handoff, so the fault is specific to the Air's firmware.
-
-        Rather than ship futile boot patches, this handler configures DEBUG
-        OpenCore file logging so the pre-ExitBootServices memory map — where
-        RebuildAppleMemoryMap decides the fate of the bridgeOS/SEP reserved
-        region — is captured to a file on the ESP for offline analysis. DEBUG
-        OpenCore itself is selected in build._build_efi(), which runs before
-        the OpenCore binaries are copied.
+        Booting the Sequoia installer through OpenCore on the MacBookAir8,x
+        breaks the T2 SEP/AppleKeyStore handshake (sks request timeout), which
+        stalls the installer (grey screen / activation). Booting WITHOUT
+        OpenCore leaves the SEP working but hits the installer's board-id
+        compatibility gate instead. This handler is the OpenCore-side test path:
+        it exercises the REAL keystore (the T1 bypass is disabled for T2 in
+        _t1_handling), forces DEBUG OpenCore + file logging in build._build_efi()
+        so there is an accessible EFI/OC/opencore-*.txt and a NVRAM panic log,
+        enables AMFIPass (needed for Lilu plugins under Sequoia since the model's
+        Max OS is Sonoma), and injects the native Intel UHD 617 framebuffer /
+        panel DeviceProperties.
         """
         if self.model not in model_array.T2_MacBookAir:
             return
@@ -456,23 +445,31 @@ class BuildMiscellaneous:
         self.config["Misc"]["Debug"]["DisableWatchDog"] = True
         self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -no_compat_check"
 
-        # With the T1 keystore stack in place the SEP hang is cleared and the
-        # machine now reaches WindowServer — but shows a grey screen with only the
-        # mouse cursor, because OpenCore does not relay the framebuffer
-        # DeviceProperties that bridgeOS injects at UEFI time, so
-        # AppleIntelKBLGraphicsFramebuffer comes up without a framebuffer/panel
-        # config. Injecting AAPL,ig-platform-id alone is not enough (already tried);
-        # the genuine hardware also carries the panel power sequence, Y-tiling and
-        # graphic-options. Replicate the FULL set exactly as the real machine's
-        # ioreg reports it on IGPU@2.
+        # AMFIPass is required for injected Lilu plugins (WhateverGreen, etc.) to
+        # load under Sequoia's AMFI. security.py only enables it when the model's
+        # Max OS is BELOW Sonoma; the MacBookAir8,x maxes at Sonoma, so that
+        # condition skips it even though we run the newer Sequoia here. Enable it
+        # explicitly (idempotent — no-op if already enabled).
+        if not support.BuildSupport(self.model, self.constants, self.config).get_kext_by_bundle_path("AMFIPass.kext")["Enabled"] is True:
+            logging.info("- T2 Mac: enabling AMFIPass for Sequoia kext injection")
+            support.BuildSupport(self.model, self.constants, self.config).enable_kext("AMFIPass.kext", self.constants.amfipass_version, self.constants.amfipass_path)
+
+        # Native Intel UHD 617 framebuffer / panel properties, replicated exactly
+        # as the genuine machine's ioreg reports them on IGPU@2. NOTE: per the
+        # user's testing the grey/half-loaded UI is NOT a framebuffer problem — it
+        # is the SEP/activation path failing to complete, so the UI never finishes
+        # coming up. These properties are therefore only kept so the panel is
+        # driven by the same values the real firmware would inject (harmless on a
+        # genuine Mac, since they match the hardware); they are not expected to
+        # clear the SEP-induced stall on their own.
         #
         # WhateverGreen is intentionally NOT injected: this is a genuine Mac, and
         # the native ig-platform-id 0x87C00005 already provides the correct
         # connectors (ioreg: con0 eDP type 0x02, con1/con2 DP type 0x0400). WEG
-        # applies hackintosh framebuffer patches that commonly cause exactly this
-        # grey-screen on real Macs, so the stock AppleIntelKBLGraphicsFramebuffer
-        # is left to drive the panel from the injected native properties alone.
-        logging.info("- T2 Mac: injecting full Intel UHD 617 framebuffer/panel properties (grey-screen fix)")
+        # applies hackintosh framebuffer patches that can cause a grey-screen on
+        # real Macs, so the stock AppleIntelKBLGraphicsFramebuffer is left to
+        # drive the panel from the injected native properties alone.
+        logging.info("- T2 Mac: injecting native Intel UHD 617 framebuffer/panel properties")
         igpu_path = "PciRoot(0x0)/Pci(0x2,0x0)"
         if igpu_path not in self.config["DeviceProperties"]["Add"]:
             self.config["DeviceProperties"]["Add"][igpu_path] = {}
