@@ -62,13 +62,18 @@ class BuildOpenCore:
         utilities.cls()
         logging.info(f"Building Configuration {'for external' if self.constants.custom_model else 'on model'}: {self.model}")
 
-        # T2 Macs (MacBookAir8,1/8,2) — SEP timing experiment: keep OpenCore on
-        # the fast RELEASE variant with no file logging so the boot stays as
-        # short as possible, giving the real SEP handshake a chance to complete
-        # within the Air's (apparently strict) timing budget. Do NOT force DEBUG
-        # OpenCore or verbose_debug here — those add the slow per-line file
-        # logging that likely pushes the handshake past its timeout. Verbose
-        # (-v) for on-screen observation is added in misc._t2_handling instead.
+        # T2 Macs (MacBookAir8,1/8,2): force DEBUG OpenCore so the boot-time
+        # memory map is logged for SEP-handoff diagnosis. This must be set
+        # before _generate_base() copies the OpenCore binaries, which pick
+        # DEBUG vs RELEASE from opencore_debug.
+        if self.model in model_array.T2_MacBookAir:
+            logging.info("- T2 Mac: forcing DEBUG OpenCore for memory-map diagnostics")
+            self.constants.opencore_debug = True
+            # Force verbose boot so the (post-EXITBS) kernel output is on screen
+            # and the hang/panic point stays visible. Routed through the standard
+            # verbose_debug path so _debug_handling() adds -v exactly once.
+            logging.info("- T2 Mac: forcing verbose boot (-v)")
+            self.constants.verbose_debug = True
 
         self._generate_base()
         self._set_revision()
