@@ -59,6 +59,12 @@ jobs:
       - name: Install Dependencies (x86_64)
         run: arch -x86_64 "$PYBIN" -m pip install -r requirements.txt
 
+      - name: Stamp unique build version (X.Y.Z-DDMMYY-HHMM)
+        run: |
+          STAMP=$(arch -x86_64 "$PYBIN" ci_tooling/stamp_build_version.py)
+          echo "Build version: $STAMP"
+          echo "build_version=$STAMP" >> "$GITHUB_ENV"
+
       - name: Recompile Privileged Helper (debug, no team ID check)
         run: arch -x86_64 make -C ci_tooling/privileged_helper_tool debug
 
@@ -117,12 +123,18 @@ jobs:
           body: |
             Automated CI build from `main` — always the newest commit.
 
+            - Build version: `${{ env.build_version }}`
             - Commit: ${{ github.sha }}
             - Built:  ${{ github.event.head_commit.timestamp }}
 
+            The build version (`X.Y.Z-DDMMYY-HHMM`) is unique per build and shows
+            in the About box, the log filename, config.plist Build-Version and the
+            NVRAM OCLP-Version — use it to confirm exactly which build you tested.
+
             Experimental T2 (MacBookAir8,1 / 8,2) support:
-            - T1 keystore stack substitution (SEP-bypass attempt)
-            - DEBUG OpenCore with memory-map file logging for diagnostics
+            - Real T2 keystore exercised (T1 bypass disabled), DEBUG OpenCore +
+              file logging so an accessible EFI/OC/opencore-*.txt and NVRAM panic
+              log are captured if the SEP times out
             - EFI/BOOT/BOOTx64.efi so the USB entry appears in the T2 Startup Manager
 
       - name: Create Tagged Release
