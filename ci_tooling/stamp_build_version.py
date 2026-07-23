@@ -3,16 +3,18 @@
 stamp_build_version.py: give every CI build a unique, human-readable version.
 
 Rewrites `self.patcher_version` in constants.py from its version prefix to
-`<ver>-YYYYMMDD-HHMM` using the current build time, e.g. `252-20260723-1732`.
+`<ver>-YYYYMMDD-HHMM` using the current build time, e.g. `2.5.2-20260723-1732`.
 The prefix is whatever precedes the first `-` in the current value, so any
 existing date/time suffix is stripped first and re-stamping never compounds.
 
 The dashed form is intentionally NOT PEP 440 valid: OCLP treats a non-PEP440
-version as a `special_build` (see constants.special_build / support/updates.py),
-which suppresses the auto-updater and marks the binary as a test build. This
-gives the tester an unambiguous identifier — visible in the About box, the log
-filename, config.plist #Revision/Build-Version and the NVRAM OCLP-Version — so
-there is never any doubt about which build is being tested.
+version as a `special_build` (see constants.special_build). The in-app updater
+(support/updates.py) special-cases these fork test builds: it reads the trailing
+YYYYMMDD-HHMM stamp and compares it against the fork's rolling `latest` release,
+so updates DO work — a newer build is offered whenever its stamp is later. The
+stamp also gives the tester an unambiguous identifier, visible in the About box,
+the log filename, config.plist #Revision/Build-Version and the NVRAM
+OCLP-Version, so there is never any doubt about which build is being tested.
 
 Prints the stamped version to stdout so CI can capture it for release notes.
 Usage: python3 ci_tooling/stamp_build_version.py [YYYYMMDD-HHMM]

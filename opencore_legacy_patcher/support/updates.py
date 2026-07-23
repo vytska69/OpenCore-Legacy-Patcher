@@ -5,6 +5,7 @@ Call check_binary_updates() to determine if any updates are available
 Returns dict with Link and Version of the latest binary update if available
 """
 
+import re
 import logging
 
 from typing import Optional, Union
@@ -17,10 +18,38 @@ from .. import constants
 
 REPO_LATEST_RELEASE_URL: str = "https://api.github.com/repos/dortania/OpenCore-Legacy-Patcher/releases/latest"
 
+# This fork ships rolling test builds versioned X.Y.Z-YYYYMMDD-HHMM. That form is
+# not PEP440, so PEP440-based comparison (and the upstream dortania updater) can't
+# rank them — they are compared by their embedded build timestamp instead. The
+# rolling build is published under the tag "latest" and marked prerelease, so the
+# GitHub /releases/latest endpoint (which skips prereleases) can't see it; fetch
+# the tag directly.
+FORK_ROLLING_RELEASE_URL: str = "https://api.github.com/repos/vytska69/OpenCore-Legacy-Patcher/releases/tags/latest"
+FORK_RELEASES_URL:        str = "https://github.com/vytska69/OpenCore-Legacy-Patcher/releases"
+
+# Matches the trailing "-YYYYMMDD-HHMM" of a fork test-build version.
+_BUILD_STAMP_RE = re.compile(r"-(\d{8})-(\d{4})$")
+
+
+def _build_stamp(version_str: Union[str, "version.Version", None]) -> Optional[int]:
+    """
+    Extract the build timestamp of a fork test build (X.Y.Z-YYYYMMDD-HHMM) as a
+    single comparable integer (YYYYMMDDHHMM). Returns None for any version that
+    does not carry such a stamp (e.g. official PEP440 releases).
+    """
+    if version_str is None:
+        return None
+    match = _BUILD_STAMP_RE.search(str(version_str))
+    if match is None:
+        return None
+    return int(match.group(1) + match.group(2))
+
 
 class CheckBinaryUpdates:
     def __init__(self, global_constants: constants.Constants) -> None:
         self.constants: constants.Constants = global_constants
+        # If this is a fork test build, its timestamp is what we compare on.
+        self.local_stamp: Optional[int] = _build_stamp(self.constants.patcher_version)
         try:
             self.binary_version = version.parse(self.constants.patcher_version)
         except version.InvalidVersion:
@@ -40,6 +69,13 @@ class CheckBinaryUpdates:
         Returns:
             bool: True if the provided version is newer, False if not
         """
+        # Fork test build: rank by embedded build timestamp.
+        if self.local_stamp is not None:
+            other_stamp = _build_stamp(version)
+            if other_stamp is None:
+                return False
+            return other_stamp > self.local_stamp
+
         if self.constants.special_build is True:
             return False
 
@@ -87,13 +123,19 @@ class CheckBinaryUpdates:
             dict: Dictionary with Link and Version of the latest binary update if available
         """
 
-        if self.constants.special_build is True:
-            # Special builds do not get updates through the updater
-            return None
-
         if self.latest_details:
             # We already checked
             return self.latest_details
+
+        # Fork test builds (X.Y.Z-YYYYMMDD-HHMM) get updates from the fork's
+        # rolling release, ranked by build timestamp rather than PEP440.
+        if self.local_stamp is not None:
+            return self._check_fork_rolling_update()
+
+        if self.constants.special_build is True:
+            # A special build without a build stamp has no reliable version to
+            # compare, so it cannot be updated through the updater.
+            return None
 
         if not network_handler.NetworkUtilities(REPO_LATEST_RELEASE_URL).verify_network_connection():
             return None
@@ -122,6 +164,51 @@ class CheckBinaryUpdates:
                     "Version": latest_remote_version,
                     "Link": asset["browser_download_url"],
                     "Github Link": f"https://github.com/dortania/OpenCore-Legacy-Patcher/releases/{latest_remote_version}",
+                }
+                return self.latest_details
+
+        return None
+
+
+    def _check_fork_rolling_update(self) -> Optional[dict]:
+        """
+        Update path for this fork's rolling test builds (X.Y.Z-YYYYMMDD-HHMM).
+
+        Compares the local build timestamp against the fork's rolling "latest"
+        release (whose name CI sets to the build version) and returns the newer
+        OpenCore-Patcher.pkg if one is available.
+
+        Returns:
+            dict: Name/Version/Link/Github Link of the newer build, or None.
+        """
+        if not network_handler.NetworkUtilities(FORK_ROLLING_RELEASE_URL).verify_network_connection():
+            return None
+
+        response = network_handler.NetworkUtilities().get(FORK_ROLLING_RELEASE_URL)
+        if response is None:
+            return None
+
+        try:
+            data_set = response.json()
+        except ValueError:
+            return None
+
+        # CI stamps the rolling release name with the build version; fall back to
+        # the tag if the name is missing (the tag "latest" carries no stamp, so
+        # that path simply yields no update).
+        remote_version = data_set.get("name") or data_set.get("tag_name", "")
+        remote_stamp = _build_stamp(remote_version)
+        if remote_stamp is None or remote_stamp <= self.local_stamp:
+            return None
+
+        for asset in data_set.get("assets", []):
+            logging.info(f"Found asset: {asset['name']}")
+            if asset["name"] == "OpenCore-Patcher.pkg":
+                self.latest_details = {
+                    "Name": asset["name"],
+                    "Version": remote_version,
+                    "Link": asset["browser_download_url"],
+                    "Github Link": data_set.get("html_url", FORK_RELEASES_URL),
                 }
                 return self.latest_details
 

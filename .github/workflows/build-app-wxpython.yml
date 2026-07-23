@@ -113,7 +113,10 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
-          name: Latest CI Build
+          # The in-app updater reads this name to learn the rolling build's
+          # version (support/updates.py::_check_fork_rolling_update), so it MUST
+          # be exactly the stamped build version.
+          name: ${{ env.build_version }}
           prerelease: true
           generate_release_notes: false
           files: |
