@@ -59,7 +59,7 @@ jobs:
       - name: Install Dependencies (x86_64)
         run: arch -x86_64 "$PYBIN" -m pip install -r requirements.txt
 
-      - name: Stamp unique build version (X.Y.Z-DDMMYY-HHMM)
+      - name: Stamp unique build version (<ver>-YYYYMMDD-HHMM)
         run: |
           STAMP=$(arch -x86_64 "$PYBIN" ci_tooling/stamp_build_version.py)
           echo "Build version: $STAMP"
@@ -127,7 +127,7 @@ jobs:
             - Commit: ${{ github.sha }}
             - Built:  ${{ github.event.head_commit.timestamp }}
 
-            The build version (`X.Y.Z-DDMMYY-HHMM`) is unique per build and shows
+            The build version (`<ver>-YYYYMMDD-HHMM`) is unique per build and shows
             in the About box, the log filename, config.plist Build-Version and the
             NVRAM OCLP-Version — use it to confirm exactly which build you tested.
 
