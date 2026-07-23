@@ -444,21 +444,17 @@ class BuildMiscellaneous:
         if self.model not in model_array.T2_MacBookAir:
             return
 
-        # SEP TIMING EXPERIMENT (real keystore):
-        # Macmini8,1 / MacBookPro15,2 (also T2) boot fine through OpenCore, but
-        # the MacBookAir8,x's T2 firmware times out the SEP/AppleKeyStore SKS
-        # handshake. The most likely difference is a stricter SEP timing budget
-        # on the Air: a slow boot (DEBUG OpenCore + file logging, ~98s here)
-        # pushes the handshake past it. So this build minimises boot time —
-        # build._build_efi() leaves OpenCore on the fast RELEASE variant with no
-        # file logging — and does NOT substitute the T1 keystore, so the REAL
-        # SEP is exercised. If the SEP completes within its budget on the fast
-        # boot, the internal (T2-encrypted) disk becomes usable.
-        #
-        # -v keeps verbose on-screen output for observation (cheap, not disk I/O);
-        # -no_compat_check lets the Sequoia installer proceed past the model check.
-        logging.info("- T2 Mac: SEP timing experiment — minimal fast boot, real keystore")
-        self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -no_compat_check -v"
+        # REAL-KEYSTORE TEST (T1 bypass NOT applied — see _t1_handling):
+        # The actual T2 SEP/AppleKeyStore is exercised here. DEBUG OpenCore +
+        # file logging is on (build._build_efi()), so EFI/OC/opencore-*.txt is a
+        # readable record for the (blind) user to verify the build, and if the
+        # SEP times out it panics ("AppleSEPManager ... sks request timeout"),
+        # which is saved to NVRAM (aapl,panic-info) and readable back in Sonoma.
+        # DisableWatchDog stops the firmware rebooting the machine before that
+        # panic is written.
+        logging.info("- T2 Mac: real-keystore test (accessible logging, panic capture)")
+        self.config["Misc"]["Debug"]["DisableWatchDog"] = True
+        self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -no_compat_check"
 
         # With the T1 keystore stack in place the SEP hang is cleared and the
         # machine now reaches WindowServer — but shows a grey screen with only the

@@ -62,13 +62,16 @@ class BuildOpenCore:
         utilities.cls()
         logging.info(f"Building Configuration {'for external' if self.constants.custom_model else 'on model'}: {self.model}")
 
-        # T2 Macs (MacBookAir8,1/8,2) — SEP timing experiment: keep OpenCore on
-        # the fast RELEASE variant with no file logging so the boot stays as
-        # short as possible, giving the real SEP handshake a chance to complete
-        # within the Air's (apparently strict) timing budget. Do NOT force DEBUG
-        # OpenCore or verbose_debug here — those add the slow per-line file
-        # logging that likely pushes the handshake past its timeout. Verbose
-        # (-v) for on-screen observation is added in misc._t2_handling instead.
+        # T2 Macs (MacBookAir8,1/8,2) — real-keystore test with ACCESSIBLE logging.
+        # The real T2 keystore is exercised (not the T1 bypass — see
+        # misc._t1_handling), and DEBUG OpenCore + file logging is forced so the
+        # blind user gets a readable EFI/OC/opencore-*.txt to verify the build
+        # and a NVRAM panic log if the SEP times out. (Speed is secondary to a
+        # verifiable, accessible result here.)
+        if self.model in model_array.T2_MacBookAir:
+            logging.info("- T2 Mac: forcing DEBUG OpenCore + verbose for accessible logging")
+            self.constants.opencore_debug = True
+            self.constants.verbose_debug = True
 
         self._generate_base()
         self._set_revision()
