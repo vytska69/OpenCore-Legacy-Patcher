@@ -393,14 +393,15 @@ class BuildMiscellaneous:
         (confirmed reaching EXITBS in its OpenCore log). Whether it clears the
         post-EXITBS SEP timeout must be verified on hardware.
         """
+        # NOTE: T2_MacBookAir is intentionally NOT handled here during the SEP
+        # timing experiment — we want the REAL T2 keystore/SEP exercised on a
+        # fast boot, not the T1 bypass. (To restore the working T1-keystore boot,
+        # re-add "or self.model in model_array.T2_MacBookAir" below.)
         _t1_models = ["MacBookPro13,2", "MacBookPro13,3", "MacBookPro14,2", "MacBookPro14,3"]
-        if self.model not in _t1_models and self.model not in model_array.T2_MacBookAir:
+        if self.model not in _t1_models:
             return
 
-        if self.model in model_array.T2_MacBookAir:
-            logging.info("- Substituting T1 keystore stack on T2 Mac (SEP bypass attempt)")
-        else:
-            logging.info("- Enabling T1 Security Chip support")
+        logging.info("- Enabling T1 Security Chip support")
 
         support.BuildSupport(self.model, self.constants, self.config).get_item_by_kv(self.config["Kernel"]["Block"], "Identifier", "com.apple.driver.AppleSSE")["Enabled"] = True
         support.BuildSupport(self.model, self.constants, self.config).get_item_by_kv(self.config["Kernel"]["Block"], "Identifier", "com.apple.driver.AppleKeyStore")["Enabled"] = True
@@ -443,22 +444,21 @@ class BuildMiscellaneous:
         if self.model not in model_array.T2_MacBookAir:
             return
 
-        # DEBUG OpenCore is selected in build._build_efi() (opencore_debug),
-        # which makes _debug_handling() set Misc/Debug/Target 0x43 (console +
-        # dated file on the ESP, EFI/OC/opencore-*.txt) and DisplayLevel
-        # 0x80000042 — the latter includes DEBUG_INFO (0x40), the level at
-        # which OcAfterBootCompatLib prints the memory map. Here we only add
-        # DisableWatchDog so the firmware watchdog does not reboot the machine
-        # while the long memory-map dump is being written before ExitBootServices.
-        logging.info("- T2 Mac: disabling watchdog so the memory-map dump completes")
-        self.config["Misc"]["Debug"]["DisableWatchDog"] = True
-
-        # -no_compat_check lets the Sequoia installer proceed past the model
-        # check so the boot reaches the memory-map handoff before the SEP
-        # timeout. Verbose (-v) is forced separately via verbose_debug in
-        # build._build_efi(), so it is not added here (avoids a duplicate -v).
-        logging.info("- T2 Mac: adding -no_compat_check for the Sequoia installer")
-        self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -no_compat_check"
+        # SEP TIMING EXPERIMENT (real keystore):
+        # Macmini8,1 / MacBookPro15,2 (also T2) boot fine through OpenCore, but
+        # the MacBookAir8,x's T2 firmware times out the SEP/AppleKeyStore SKS
+        # handshake. The most likely difference is a stricter SEP timing budget
+        # on the Air: a slow boot (DEBUG OpenCore + file logging, ~98s here)
+        # pushes the handshake past it. So this build minimises boot time —
+        # build._build_efi() leaves OpenCore on the fast RELEASE variant with no
+        # file logging — and does NOT substitute the T1 keystore, so the REAL
+        # SEP is exercised. If the SEP completes within its budget on the fast
+        # boot, the internal (T2-encrypted) disk becomes usable.
+        #
+        # -v keeps verbose on-screen output for observation (cheap, not disk I/O);
+        # -no_compat_check lets the Sequoia installer proceed past the model check.
+        logging.info("- T2 Mac: SEP timing experiment — minimal fast boot, real keystore")
+        self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -no_compat_check -v"
 
         # With the T1 keystore stack in place the SEP hang is cleared and the
         # machine now reaches WindowServer — but shows a grey screen with only the
