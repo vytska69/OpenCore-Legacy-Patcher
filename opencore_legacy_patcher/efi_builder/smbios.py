@@ -136,12 +136,22 @@ class BuildSMBIOS:
                 self.config["NVRAM"]["Add"]["4D1FDA02-38C7-4A6A-9CC6-4BCCA8B30102"]["OCLP-Spoofed-MLB"] = self.constants.custom_board_serial_number
 
         # USB Map and CPUFriend Patching
+        #
+        # T2_MacBookAir is excluded to match misc.py::_usb_handling, which skips
+        # injecting USB-Map.kext on these models (native USB support; a port map
+        # that omits the internal keyboard/trackpad leaves the machine with no
+        # input). Without this the kext folder is never created and the build
+        # died here with FileNotFoundError on USB-Map.kext/Contents/Info.plist.
+        # The existence check additionally keeps any future mismatch from
+        # crashing the build.
+        new_map_ls = Path(self.constants.map_contents_folder) / Path("Info.plist")
         if (
             self.constants.allow_oc_everywhere is False
             and self.model not in ["Xserve2,1", "Dortania1,1"]
+            and self.model not in model_array.T2_MacBookAir
             and ((self.model in model_array.Missing_USB_Map or self.model in model_array.Missing_USB_Map_Ventura) or self.constants.serial_settings in ["Moderate", "Advanced"])
+            and new_map_ls.exists()
         ):
-            new_map_ls = Path(self.constants.map_contents_folder) / Path("Info.plist")
             map_config = plistlib.load(Path(new_map_ls).open("rb"))
             # Strip unused USB maps
             for entry in list(map_config["IOKitPersonalities_x86_64"]):
