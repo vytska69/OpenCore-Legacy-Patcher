@@ -299,8 +299,18 @@ class BuildMiscellaneous:
         """
 
         # USB Map
+        #
+        # NOTE: MacBookAir8,x is listed in Missing_USB_Map, but that list exists
+        # for OLD Macs whose USB ports macOS no longer declares. A 2018 T2 Mac
+        # has full native USB support, and its internal keyboard and trackpad are
+        # USB devices behind the T2. Injecting a port map that does not declare
+        # them stops them enumerating, leaving the machine with no input at all —
+        # which is exactly the "stuck, cannot move" state seen on the installer's
+        # language screen. Skip the map on these models.
         usb_map_path = Path(self.constants.plist_folder_path) / Path("AppleUSBMaps/Info.plist")
-        if (
+        if self.model in model_array.T2_MacBookAir:
+            logging.info("- T2 Mac: skipping USB-Map.kext (native USB support; map can kill the internal keyboard/trackpad)")
+        elif (
             usb_map_path.exists()
             and (self.constants.allow_oc_everywhere is False or self.constants.allow_native_spoofs is True)
             and self.model not in ["Xserve2,1", "Dortania1,1"]
