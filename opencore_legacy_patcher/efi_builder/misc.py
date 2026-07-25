@@ -308,7 +308,7 @@ class BuildMiscellaneous:
         # which is exactly the "stuck, cannot move" state seen on the installer's
         # language screen. Skip the map on these models.
         usb_map_path = Path(self.constants.plist_folder_path) / Path("AppleUSBMaps/Info.plist")
-        if self.model in model_array.T2_MacBookAir:
+        if self.model in model_array.T2_MacBookAir and self.constants.t2_skip_usb_map is True:
             logging.info("- T2 Mac: skipping USB-Map.kext (native USB support; map can kill the internal keyboard/trackpad)")
         elif (
             usb_map_path.exists()

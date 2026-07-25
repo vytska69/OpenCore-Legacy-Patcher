@@ -148,7 +148,7 @@ class BuildSMBIOS:
         if (
             self.constants.allow_oc_everywhere is False
             and self.model not in ["Xserve2,1", "Dortania1,1"]
-            and self.model not in model_array.T2_MacBookAir
+            and not (self.model in model_array.T2_MacBookAir and self.constants.t2_skip_usb_map is True)
             and ((self.model in model_array.Missing_USB_Map or self.model in model_array.Missing_USB_Map_Ventura) or self.constants.serial_settings in ["Moderate", "Advanced"])
             and new_map_ls.exists()
         ):

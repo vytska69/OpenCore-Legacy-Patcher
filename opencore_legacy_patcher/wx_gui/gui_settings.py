@@ -636,11 +636,23 @@ class SettingsFrame(wx.Frame):
                     "value": self.constants.t2_board_id_patch,
                     "variable": "t2_board_id_patch",
                     "description": [
-                        "MacBookAir8,x only. Patches boot.efi so it",
-                        "cannot read the supported-board list, getting",
-                        "past 'not compatible'. On by default. Turn OFF",
-                        "if the installer stops booting at all.",
+                        "MacBookAir8,x only. Experimental: patches",
+                        "boot.efi so it cannot read the supported-board",
+                        "list. Off by default — the last configuration",
+                        "known to boot Sequoia did not use it.",
                         "Rebuild OpenCore after changing.",
+                    ],
+                },
+                "T2: skip USB-Map.kext": {
+                    "type": "checkbox",
+                    "value": self.constants.t2_skip_usb_map,
+                    "variable": "t2_skip_usb_map",
+                    "description": [
+                        "MacBookAir8,x only. Experimental: do not inject",
+                        "the USB port map. Try this if the internal",
+                        "keyboard or trackpad do not respond. Off by",
+                        "default — the last configuration known to boot",
+                        "Sequoia injected it. Rebuild OpenCore after.",
                     ],
                 },
                 "T2: static CPUID VMM bit": {
