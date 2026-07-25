@@ -631,6 +631,19 @@ class SettingsFrame(wx.Frame):
                         "Note: Incompatible with Root Patching.",
                     ],
                 },
+                "T2: static CPUID VMM bit": {
+                    "type": "checkbox",
+                    "value": self.constants.t2_vmm_cpuid,
+                    "variable": "t2_vmm_cpuid",
+                    "description": [
+                        "MacBookAir8,x only. Experimental: sets the",
+                        "CPUID hypervisor bit to satisfy the installer's",
+                        "compatibility check. Tested on hardware it",
+                        "PREVENTED the installer from booting, so it is",
+                        "off. RestrictEvents 'sbvmm' already does this",
+                        "dynamically. Rebuild OpenCore after changing.",
+                    ],
+                },
                 "T2: use T1 keystore substitution": {
                     "type": "checkbox",
                     "value": self.constants.t2_t1_keystore,

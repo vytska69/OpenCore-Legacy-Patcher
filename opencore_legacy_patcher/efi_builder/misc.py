@@ -488,15 +488,17 @@ class BuildMiscellaneous:
             self.config["Booter"]["Patch"], "Comment", "Skip Board ID check"
         )["Enabled"] = True
 
-        # 2. The installer app's own model check, which is bypassed by looking
-        #    like a VM. RestrictEvents' "sbvmm" does this dynamically (forced on
-        #    for this model in _re_generate_patch_arguments), but it depends on
-        #    Lilu + RestrictEvents loading and on the installer being detected in
-        #    time. Also set the CPUID hypervisor bit statically so the VM identity
-        #    is present unconditionally from the very first instruction.
-        logging.info("- T2 Mac: setting CPUID VMM bit for installer compatibility")
-        self.config["Kernel"]["Emulate"]["Cpuid1Data"] = binascii.unhexlify("00000000000000000000008000000000")
-        self.config["Kernel"]["Emulate"]["Cpuid1Mask"] = binascii.unhexlify("00000000000000000000008000000000")
+        # 2. The installer app's own model check, bypassed by looking like a VM.
+        #    RestrictEvents' "sbvmm" does this dynamically (forced on for this
+        #    model in _re_generate_patch_arguments). A static CPUID hypervisor bit
+        #    is the stronger alternative, but on this hardware it STOPPED THE
+        #    INSTALLER FROM BOOTING AT ALL — with the bit set, macOS takes VM code
+        #    paths that do not hold on a real T2. It is therefore off by default
+        #    and opt-in via Settings > Developer, kept only for experiments.
+        if self.constants.t2_vmm_cpuid is True:
+            logging.info("- T2 Mac: setting CPUID VMM bit (experimental, known to break booting)")
+            self.config["Kernel"]["Emulate"]["Cpuid1Data"] = binascii.unhexlify("00000000000000000000008000000000")
+            self.config["Kernel"]["Emulate"]["Cpuid1Mask"] = binascii.unhexlify("00000000000000000000008000000000")
 
         # AMFIPass is required for injected Lilu plugins (WhateverGreen, etc.) to
         # load under Sequoia's AMFI. security.py only enables it when the model's
