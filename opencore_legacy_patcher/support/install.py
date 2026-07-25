@@ -145,18 +145,32 @@ class tui_disk_installation:
 
         subprocess.run(["/bin/mkdir", "-p", mount_path / Path("EFI")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-        _copies = [(["/bin/cp", "-r", source_oc, mount_path / Path("EFI/OC")], "EFI/OC")]
+        # Use `ditto`, NOT `cp -r`, to write onto the FAT32 EFI volume. On macOS
+        # 13+ the built OpenCore in /var/folders carries extended attributes
+        # (com.apple.provenance / quarantine) that FAT cannot store; `cp -r`
+        # then aborts with "unable to copy extended attributes ... No such file
+        # or directory" and leaves the EFI partition empty. ditto with
+        # --noextattr/--noqtn/--noacl strips those and copies the tree cleanly.
+        def _ditto_copy(src: Path, dst: Path, what: str) -> bool:
+            r = subprocess.run(
+                ["/usr/bin/ditto", "--noextattr", "--noqtn", "--noacl", str(src), str(dst)],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            )
+            if r.returncode != 0:
+                logging.error(f"Failed to copy {what} onto the EFI partition: {r.stderr.decode('utf-8', 'ignore').strip()}")
+                return False
+            return True
+
+        _copies = [(source_oc, mount_path / Path("EFI/OC"), "EFI/OC")]
         if source_system.exists():
-            _copies.append((["/bin/cp", "-r", source_system, mount_path / Path("System")], "System"))
-        for _argv, _what in _copies:
-            _r = subprocess.run(_argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            if _r.returncode != 0:
-                logging.error(f"Failed to copy {_what} onto the EFI partition: {_r.stderr.decode('utf-8', 'ignore').strip()}")
+            _copies.append((source_system, mount_path / Path("System"), "System"))
+        for _src, _dst, _what in _copies:
+            if not _ditto_copy(_src, _dst, _what):
                 subprocess.run(["/usr/sbin/diskutil", "umount", mount_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 return False
 
         if Path(self.constants.opencore_release_folder / Path("boot.efi")).exists():
-            subprocess.run(["/bin/cp", self.constants.opencore_release_folder / Path("boot.efi"), mount_path / Path("boot.efi")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            _ditto_copy(self.constants.opencore_release_folder / Path("boot.efi"), mount_path / Path("boot.efi"), "boot.efi")
 
         if self.constants.boot_efi is True:
             logging.info("Converting Bootstrap to BOOTx64.efi")
