@@ -631,6 +631,18 @@ class SettingsFrame(wx.Frame):
                         "Note: Incompatible with Root Patching.",
                     ],
                 },
+                "T2: fast boot (shorten pre-SEP time)": {
+                    "type": "checkbox",
+                    "value": self.constants.t2_fast_boot,
+                    "variable": "t2_fast_boot",
+                    "description": [
+                        "MacBookAir8,x only. Skips OpenCanopy's ~7 MB of",
+                        "picker graphics and drops the picker wait to 1",
+                        "second, shortening the boot before the SEP",
+                        "handshake. Uses the plain text picker.",
+                        "Rebuild OpenCore after changing.",
+                    ],
+                },
                 "T2: skip Board ID check in boot.efi": {
                     "type": "checkbox",
                     "value": self.constants.t2_board_id_patch,

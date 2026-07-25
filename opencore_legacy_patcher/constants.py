@@ -199,6 +199,7 @@ class Constants:
         # no boot.efi Board ID patch, USB-Map.kext injected as usual.
         self.t2_board_id_patch: bool = False  # T2 Macs: boot.efi "Skip Board ID check" patch (experimental)
         self.t2_skip_usb_map:   bool = False  # T2 Macs: skip USB-Map.kext injection (experimental)
+        self.t2_fast_boot:      bool = False  # T2 Macs: skip OpenCanopy graphics + 1s picker, to shorten the pre-SEP boot
         self.vault:          bool = False  # EFI Vault
         self.disable_cs_lv:  bool = False  # Disable Library validation
         self.disable_amfi:   bool = False  # Disable AMFI

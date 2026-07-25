@@ -378,9 +378,19 @@ class BuildMiscellaneous:
         General OpenCorePkg Handler
         """
 
-        logging.info("- Adding OpenCanopy GUI")
-        shutil.copy(self.constants.gui_path, self.constants.oc_folder)
-        support.BuildSupport(self.model, self.constants, self.config).get_efi_binary_by_path("OpenCanopy.efi", "UEFI", "Drivers")["Enabled"] = True
+        # T2 fast boot: OpenCanopy reads ~7 MB across ~240 icon/font resources
+        # from the ESP before it can draw anything. From a USB stick that is a
+        # real delay ahead of the SEP/AppleKeyStore handshake, which on the
+        # MacBookAir8,x appears to have a tight timing budget — and the graphical
+        # picker is of no use to a screen-reader user anyway. Skip it and use
+        # OpenCore's builtin text picker instead.
+        _t2_fast = self.model in model_array.T2_MacBookAir and self.constants.t2_fast_boot is True
+        if _t2_fast:
+            logging.info("- T2 Mac: fast boot — skipping OpenCanopy graphics, using the builtin picker")
+        else:
+            logging.info("- Adding OpenCanopy GUI")
+            shutil.copy(self.constants.gui_path, self.constants.oc_folder)
+            support.BuildSupport(self.model, self.constants, self.config).get_efi_binary_by_path("OpenCanopy.efi", "UEFI", "Drivers")["Enabled"] = True
         support.BuildSupport(self.model, self.constants, self.config).get_efi_binary_by_path("OpenRuntime.efi", "UEFI", "Drivers")["Enabled"] = True
         support.BuildSupport(self.model, self.constants, self.config).get_efi_binary_by_path("OpenLinuxBoot.efi", "UEFI", "Drivers")["Enabled"] = True
         support.BuildSupport(self.model, self.constants, self.config).get_efi_binary_by_path("ResetNvramEntry.efi", "UEFI", "Drivers")["Enabled"] = True
@@ -389,7 +399,13 @@ class BuildMiscellaneous:
             logging.info("- Hiding OpenCore picker")
             self.config["Misc"]["Boot"]["ShowPicker"] = False
 
-        if self.constants.oc_timeout != 5:
+        if _t2_fast:
+            # PickerMode Builtin: text picker, no resource loading. Timeout 1s
+            # (0 would mean "wait forever" in OpenCore, not "boot immediately").
+            self.config["Misc"]["Boot"]["PickerMode"] = "Builtin"
+            self.config["Misc"]["Boot"]["Timeout"] = 1
+            logging.info("- T2 Mac: fast boot — picker timeout set to 1 second")
+        elif self.constants.oc_timeout != 5:
             logging.info(f"- Setting custom OpenCore picker timeout to {self.constants.oc_timeout} seconds")
             self.config["Misc"]["Boot"]["Timeout"] = self.constants.oc_timeout
 
