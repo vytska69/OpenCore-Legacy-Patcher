@@ -402,15 +402,25 @@ class BuildMiscellaneous:
         (confirmed reaching EXITBS in its OpenCore log). Whether it clears the
         post-EXITBS SEP timeout must be verified on hardware.
         """
-        # NOTE: T2_MacBookAir is intentionally NOT handled here during the SEP
-        # timing experiment — we want the REAL T2 keystore/SEP exercised on a
-        # fast boot, not the T1 bypass. (To restore the working T1-keystore boot,
-        # re-add "or self.model in model_array.T2_MacBookAir" below.)
+        # T2 MacBookAir8,x is included deliberately, based on hardware evidence:
+        # with the REAL T2 keystore the machine now boots all the way to the login
+        # screen through OpenCore and then hangs there. On a T2 the login path
+        # (password verification + keybag unlock) runs through AppleKeyStore ->
+        # SEP, and that mailbox handshake is exactly what fails after the OpenCore
+        # handoff. Substituting the T1-era keystore stack, which never performs
+        # the T2 SKS handshake, is precisely what this bypass exists for.
+        #
+        # Trade-off: SEP-backed features are lost (FileVault/storage keys and
+        # activation/device identity). Acceptable for reaching a usable desktop;
+        # to test the real keystore again, drop T2_MacBookAir from the list.
         _t1_models = ["MacBookPro13,2", "MacBookPro13,3", "MacBookPro14,2", "MacBookPro14,3"]
-        if self.model not in _t1_models:
+        if self.model not in _t1_models and self.model not in model_array.T2_MacBookAir:
             return
 
-        logging.info("- Enabling T1 Security Chip support")
+        if self.model in model_array.T2_MacBookAir:
+            logging.info("- T2 Mac: substituting the T1 keystore stack to bypass the SEP login hang")
+        else:
+            logging.info("- Enabling T1 Security Chip support")
 
         support.BuildSupport(self.model, self.constants, self.config).get_item_by_kv(self.config["Kernel"]["Block"], "Identifier", "com.apple.driver.AppleSSE")["Enabled"] = True
         support.BuildSupport(self.model, self.constants, self.config).get_item_by_kv(self.config["Kernel"]["Block"], "Identifier", "com.apple.driver.AppleKeyStore")["Enabled"] = True
