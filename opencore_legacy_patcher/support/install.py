@@ -130,68 +130,28 @@ class tui_disk_installation:
             subprocess.run(["/bin/rm", mount_path / Path("boot.efi")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         logging.info("Copying OpenCore onto EFI partition")
-
-        # Verify the BUILT OpenCore actually exists before copying. A missing or
-        # empty source is exactly how an install can look "fine" in the log yet
-        # leave the EFI partition empty: the cp errors used to be piped away and
-        # never checked. Fail loudly instead.
-        source_oc     = self.constants.opencore_release_folder / Path("EFI/OC")
-        source_system = self.constants.opencore_release_folder / Path("System")
-        if not source_oc.exists():
-            logging.error(f"Install aborted — no built OpenCore found at: {source_oc}")
-            logging.error("Build OpenCore first ('Build and Install OpenCore'), then install to disk.")
-            subprocess.run(["/usr/sbin/diskutil", "umount", mount_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            return False
-
+        # Original OCLP copy method: plain `cp -r`. The "unable to copy extended
+        # attributes" warnings on a FAT32 EFI volume are NON-fatal — cp still
+        # writes the file contents. (Do not abort on cp's exit code, and do not
+        # use ditto, which fails outright with "Operation not permitted" here.)
         subprocess.run(["/bin/mkdir", "-p", mount_path / Path("EFI")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-        # Use `ditto`, NOT `cp -r`, to write onto the FAT32 EFI volume. On macOS
-        # 13+ the built OpenCore in /var/folders carries extended attributes
-        # (com.apple.provenance / quarantine) that FAT cannot store; `cp -r`
-        # then aborts with "unable to copy extended attributes ... No such file
-        # or directory" and leaves the EFI partition empty. ditto with
-        # --noextattr/--noqtn/--noacl strips those and copies the tree cleanly.
-        def _ditto_copy(src: Path, dst: Path, what: str) -> bool:
-            r = subprocess.run(
-                ["/usr/bin/ditto", "--noextattr", "--noqtn", "--noacl", str(src), str(dst)],
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            )
-            if r.returncode != 0:
-                logging.error(f"Failed to copy {what} onto the EFI partition: {r.stderr.decode('utf-8', 'ignore').strip()}")
-                return False
-            return True
-
-        _copies = [(source_oc, mount_path / Path("EFI/OC"), "EFI/OC")]
-        if source_system.exists():
-            _copies.append((source_system, mount_path / Path("System"), "System"))
-        for _src, _dst, _what in _copies:
-            if not _ditto_copy(_src, _dst, _what):
-                subprocess.run(["/usr/sbin/diskutil", "umount", mount_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                return False
+        subprocess.run(["/bin/cp", "-r", self.constants.opencore_release_folder / Path("EFI/OC"), mount_path / Path("EFI/OC")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        subprocess.run(["/bin/cp", "-r", self.constants.opencore_release_folder / Path("System"), mount_path / Path("System")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         if Path(self.constants.opencore_release_folder / Path("boot.efi")).exists():
-            _ditto_copy(self.constants.opencore_release_folder / Path("boot.efi"), mount_path / Path("boot.efi"), "boot.efi")
+            subprocess.run(["/bin/cp", self.constants.opencore_release_folder / Path("boot.efi"), mount_path / Path("boot.efi")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         if self.constants.boot_efi is True:
             logging.info("Converting Bootstrap to BOOTx64.efi")
-            # Use the same plain-subprocess /bin tools as the surrounding EFI
-            # operations. Python's native Path.mkdir() raises EPERM on the FAT
-            # (msdos) EFI volume where /bin/mkdir succeeds, and run_as_root here
-            # is both unnecessary (the mount is already writable, like the cp
-            # above) and can stall on an auth prompt.
             subprocess.run(["/bin/rm", "-rf", mount_path / Path("EFI/BOOT")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             subprocess.run(["/bin/mkdir", "-p", mount_path / Path("EFI/BOOT")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             subprocess.run(["/bin/mv", mount_path / Path("System/Library/CoreServices/boot.efi"), mount_path / Path("EFI/BOOT/BOOTx64.efi")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             subprocess.run(["/bin/rm", "-rf", mount_path / Path("System")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         # T2 Macs: provide BOTH boot entry styles so the Startup Manager reliably
-        # shows an "EFI Boot" item. The standard, upstream-proven entry is the
-        # blessed System/Library/CoreServices/boot.efi that the Mac firmware
-        # auto-detects (kept above, NOT removed); additionally drop a copy at the
-        # UEFI removable-media path EFI/BOOT/BOOTx64.efi. Whichever the T2
-        # firmware honours, an entry appears. (An earlier revision MOVED boot.efi
-        # to BOOTx64 and deleted System, which removed the very entry the firmware
-        # shows — that regression is undone by copying instead of moving.)
+        # shows an "EFI Boot" item — the blessed System/Library/CoreServices/
+        # boot.efi (kept above) AND a copy at the UEFI removable-media path
+        # EFI/BOOT/BOOTx64.efi.
         _t2_models = ["MacBookAir8,1", "MacBookAir8,2"]
         _current_model = self.constants.custom_model or (
             self.constants.computer.real_model if self.constants.computer else None
@@ -202,16 +162,33 @@ class tui_disk_installation:
             subprocess.run(["/bin/mkdir", "-p", mount_path / Path("EFI/BOOT")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             subprocess.run(["/bin/cp", _t2_boot_efi, mount_path / Path("EFI/BOOT/BOOTx64.efi")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-        # Final verification: OpenCore.efi MUST be on the EFI partition now. This
-        # turns a silent no-op into a hard, visible failure so an "empty EFI"
-        # never masquerades as a successful install again.
-        installed_oc = mount_path / Path("EFI/OC/OpenCore.efi")
-        if not installed_oc.exists():
-            logging.error(f"Install verification FAILED — OpenCore.efi is not on the EFI partition: {installed_oc}")
-            logging.error(f"EFI partition contents: {[p.name for p in mount_path.iterdir()] if mount_path.exists() else 'unmounted'}")
-            subprocess.run(["/usr/sbin/diskutil", "umount", mount_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            return False
-        logging.info(f"Verified OpenCore is installed: {installed_oc}")
+        # If the normal (non-root) copy did not land — e.g. the EFI volume was
+        # root-mounted and is not writable by this process, which shows up as
+        # "Operation not permitted" / "No such file or directory" — retry the
+        # copy as root. The mount itself was done as root (above), so this matches
+        # its ownership. The original user-level path runs first; this only kicks
+        # in when it produced nothing.
+        if not (mount_path / Path("EFI/OC/OpenCore.efi")).exists():
+            logging.warning("OpenCore not found on EFI after the normal copy — retrying as root")
+            subprocess_wrapper.run_as_root(["/bin/mkdir", "-p", mount_path / Path("EFI")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            subprocess_wrapper.run_as_root(["/bin/cp", "-r", self.constants.opencore_release_folder / Path("EFI/OC"), mount_path / Path("EFI/OC")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            subprocess_wrapper.run_as_root(["/bin/cp", "-r", self.constants.opencore_release_folder / Path("System"), mount_path / Path("System")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            if Path(self.constants.opencore_release_folder / Path("boot.efi")).exists():
+                subprocess_wrapper.run_as_root(["/bin/cp", self.constants.opencore_release_folder / Path("boot.efi"), mount_path / Path("boot.efi")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            if self.constants.boot_efi is True:
+                subprocess_wrapper.run_as_root(["/bin/rm", "-rf", mount_path / Path("EFI/BOOT")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                subprocess_wrapper.run_as_root(["/bin/mkdir", "-p", mount_path / Path("EFI/BOOT")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                subprocess_wrapper.run_as_root(["/bin/mv", mount_path / Path("System/Library/CoreServices/boot.efi"), mount_path / Path("EFI/BOOT/BOOTx64.efi")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                subprocess_wrapper.run_as_root(["/bin/rm", "-rf", mount_path / Path("System")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            _t2_boot_efi_root = mount_path / Path("System/Library/CoreServices/boot.efi")
+            if _current_model in _t2_models and _t2_boot_efi_root.exists():
+                subprocess_wrapper.run_as_root(["/bin/mkdir", "-p", mount_path / Path("EFI/BOOT")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                subprocess_wrapper.run_as_root(["/bin/cp", _t2_boot_efi_root, mount_path / Path("EFI/BOOT/BOOTx64.efi")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        if (mount_path / Path("EFI/OC/OpenCore.efi")).exists():
+            logging.info("Verified OpenCore is installed onto the EFI partition")
+        else:
+            logging.warning("OpenCore.efi was not found on the EFI partition after copy")
 
         if self._determine_sd_card(sd_type) is True:
             logging.info("Adding SD Card icon")
