@@ -179,6 +179,44 @@ Lock takes the identity-enforcement variable out of the OpenCore boot entirely:
 
 Either outcome is progress: it splits the problem in two.
 
+## 7b. BREAKTHROUGH (2026-07-25): OpenCore boots Sequoia on the T2
+
+The SEP wall was **not** a SEP wall. With Full Disk Access granted (unsigned fork
+builds cannot write to USB volumes otherwise — see README), OpenCore actually
+landed on the ESP for the first time, and the machine booted the **macOS Sequoia
+installer through OpenCore** with VoiceOver working and the GUI fully rendered.
+
+Every earlier "grey screen / SEP hang" was therefore a red herring: the EFI
+partition had been empty all along, so OpenCore never ran. The original
+`PermissionError [Errno 1] Operation not permitted: /Volumes/EFI/EFI/BOOT` was
+the very first symptom of that, long before any SEP theory.
+
+### Remaining blocker and its root cause
+
+The booted installer stops at its own compatibility gate:
+"macOS Sequoia is not compatible with this Mac."
+
+Root cause traced in `support/defaults.py::_smbios_probe`:
+
+- MacBookAir8,1 has `SecureBootModel: "j140k"` and `Max OS Supported: sonoma`.
+- With SIP enabled, the generic logic set `secure_status = True`, `force_vmm = False`.
+- That has two fatal consequences for Sequoia:
+  1. `efi_builder/misc.py::_re_generate_patch_arguments` only adds the VMM spoof
+     (`sbvmm`) when `serial_settings == "None"` **or** `secure_status is False`.
+     With `serial_settings = "Minimal"` and `secure_status = True`, **sbvmm was
+     never added**, so RestrictEvents was not injected at all and the installer's
+     board-id gate was never bypassed. (Confirmed by the install log: it copied
+     `EFICheckDisabler.kext` — which is only enabled when RestrictEvents is
+     disabled — and no `RestrictEvents.kext`.)
+  2. `efi_builder/security.py` only disables `SecureBootModel` when
+     `secure_status is False`; leaving it at `j140k` makes Apple Secure Boot
+     reject Sequoia, which that board was never signed for.
+
+Fix: special-case `model_array.T2_MacBookAir` in `_smbios_probe` to force
+`secure_status = False` / `force_vmm = True`, plus a belt-and-braces force of
+`sbvmm` in `_re_generate_patch_arguments` (secure_status is user-toggleable in
+Settings).
+
 ## 8. Honest assessment
 
 This is a genuinely hard, upstream-unsolved problem as of early 2026. Collecting

@@ -150,6 +150,15 @@ class BuildMiscellaneous:
         if self.constants.allow_oc_everywhere is False and (self.constants.serial_settings == "None" or self.constants.secure_status is False):
             re_patch_args.append("sbvmm")
 
+        # T2 MacBookAir8,x always needs the VMM spoof: the Sequoia installer's
+        # board-id gate ("macOS Sequoia is not compatible with this Mac") is only
+        # bypassed through it, and the model's Max OS is Sonoma so the gate always
+        # triggers. defaults.py forces secure_status False for these models, but
+        # secure_status is user-toggleable in Settings, so guarantee it here too.
+        if self.model in model_array.T2_MacBookAir and "sbvmm" not in re_patch_args:
+            logging.info("- T2 Mac: forcing VMM spoof for the Sequoia installer compatibility gate")
+            re_patch_args.append("sbvmm")
+
         # Resolve CoreGraphics.framework crashing on Ivy Bridge in macOS 13.3+
         # Ref: https://github.com/acidanthera/RestrictEvents/pull/12
         if smbios_data.smbios_dictionary[self.model]["CPU Generation"] == cpu_data.CPUGen.ivy_bridge.value:

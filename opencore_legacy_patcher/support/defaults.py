@@ -20,7 +20,8 @@ from . import (
 from ..datasets import (
     smbios_data,
     cpu_data,
-    os_data
+    os_data,
+    model_array
 )
 
 
@@ -158,6 +159,24 @@ class GenerateDefaults:
             # Native Macs (mainly M1s) will error out as they don't know what SMBIOS to spoof to
             # As we don't spoof on native models, we can safely ignore this
             spoof_model = self.model
+
+        # T2 MacBookAir8,x: this fork targets macOS Sequoia, which is BEYOND the
+        # model's Max OS (Sonoma). Two things must therefore be forced, and both
+        # hang off secure_status:
+        #   1. SecureBootModel must be Disabled (efi_builder/security.py). Leaving
+        #      it at the model's "j140k" makes Apple Secure Boot reject Sequoia,
+        #      which j140k was never signed for.
+        #   2. The VMM spoof (RestrictEvents "sbvmm") must be applied
+        #      (efi_builder/misc.py::_re_generate_patch_arguments), otherwise the
+        #      Sequoia installer's board-id gate refuses to run:
+        #      "macOS Sequoia is not compatible with this Mac."
+        # With SIP enabled the generic logic below would set secure_status=True
+        # and skip both, so special-case these models first.
+        if self.model in model_array.T2_MacBookAir:
+            logging.info("- T2 Mac: forcing VMM spoof and disabling SecureBootModel for Sequoia")
+            self.constants.secure_status = False
+            self.constants.force_vmm = True
+            return
 
         if spoof_model in smbios_data.smbios_dictionary:
             if smbios_data.smbios_dictionary[spoof_model]["SecureBootModel"] is not None:
