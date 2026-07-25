@@ -904,6 +904,17 @@ class SettingsFrame(wx.Frame):
                         "nodes, loaded keystore kexts and recent SEP log.",
                     ],
                 },
+                "Collect T2 master bundle": {
+                    "type": "button",
+                    "function": self.on_collect_t2_bundle,
+                    "description": [
+                        "One labelled folder ('native' vs 'opencore') with",
+                        "EVERYTHING: full ioreg, all NVRAM, system_profiler,",
+                        "the config.plist in use, SEP report + boot logs — so",
+                        "a good boot and a broken boot can be diffed. See",
+                        "docs/T2-SEP-Investigation.md.",
+                    ],
+                },
 
                 "Developer Root Volume Patching": {
                     "type": "title",
@@ -1607,6 +1618,144 @@ Hardware Information:
             f"Saved the T2 / SEP report to:\n{out_path}\n\n"
             f"{len(sections) + 2} sections captured. Open it in any text editor "
             "or read it with VoiceOver — each section starts with a '=====' heading.",
+            "Success", wx.OK | wx.ICON_INFORMATION,
+        ).ShowModal()
+
+
+    def on_collect_t2_bundle(self, event: wx.Event) -> None:
+        # One-stop, LABELLED collection of everything useful for cracking the T2
+        # SEP-through-OpenCore problem. The label ('native' vs 'opencore') is the
+        # whole point: the machine works natively and breaks only under OpenCore,
+        # so two labelled bundles can be diffed to find exactly what changed.
+        # See docs/T2-SEP-Investigation.md.
+        import shutil
+        import time
+
+        def _printable(data) -> str:
+            if isinstance(data, str):
+                data = data.encode("latin-1", "ignore")
+            return "".join(chr(b) if (0x20 <= b < 0x7F or b in (0x09, 0x0A)) else "" for b in data)
+
+        def _run_to_file(argv, path, timeout=120) -> bool:
+            try:
+                r = subprocess.run(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout)
+                text = r.stdout.decode("utf-8", "replace") if r.stdout else ""
+                path.write_text(f"$ {' '.join(argv)}\n\n{text}")
+                return True
+            except Exception as e:
+                try:
+                    path.write_text(f"$ {' '.join(argv)}\n\n(error: {e})")
+                except Exception:
+                    pass
+                return False
+
+        # 1) Which boot state is this snapshot?
+        choices = [
+            "native  — booted WITHOUT OpenCore (SEP alive, known-good baseline)",
+            "opencore — captured back in Sonoma AFTER a failed OpenCore boot",
+        ]
+        with wx.SingleChoiceDialog(
+            self.parent, "Which boot state is this snapshot?\n\n"
+            "Capture one of each ('native' and 'opencore') so they can be diffed.",
+            "T2 master bundle — label", choices,
+        ) as dlg:
+            if dlg.ShowModal() == wx.ID_CANCEL:
+                return
+            label = "native" if dlg.GetSelection() == 0 else "opencore"
+
+        with wx.DirDialog(self.parent, "Choose a folder to save the T2 master bundle into", style=wx.DD_DEFAULT_STYLE) as dirDialog:
+            if dirDialog.ShowModal() == wx.ID_CANCEL:
+                return
+            base = Path(dirDialog.GetPath()) / f"OCLP-T2-Bundle-{label}-{time.strftime('%Y%m%d-%H%M%S')}"
+
+        base.mkdir(parents=True, exist_ok=True)
+        collected = []
+
+        _model = self.constants.custom_model or (self.constants.computer.real_model if self.constants.computer else "unknown")
+
+        # 2) Manifest / README first, so the folder is self-describing.
+        (base / "README.txt").write_text(
+            "OpenCore Legacy Patcher — T2 master bundle\n"
+            f"Snapshot label: {label}\n"
+            f"Generated: {time.strftime('%Y-%m-%d %H:%M:%S')}\n"
+            f"OCLP build: {self.constants.patcher_version}\n"
+            f"Model: {_model}\n\n"
+            "Purpose: the machine works natively and breaks only under OpenCore,\n"
+            "so capture ONE bundle labelled 'native' and ONE labelled 'opencore'\n"
+            "and diff them. See docs/T2-SEP-Investigation.md in the repo.\n\n"
+            "Files:\n"
+            "- ioreg-full.txt          full IORegistry (-l)\n"
+            "- nvram-all.xml           every NVRAM variable\n"
+            "- system_profiler-*.txt   hardware / T2 controller / storage\n"
+            "- sysctl.txt              hw + kern.bootargs\n"
+            "- kextstat.txt            loaded kexts (shows T1 vs T2 keystore)\n"
+            "- ioreg-<Class>.txt       each SEP / keystore driver node\n"
+            "- config.plist            the OpenCore config actually in use (if found)\n"
+            "- opencore-*.txt          OpenCore DEBUG log from the ESP (if found)\n"
+            "- panic-info.txt/preoslog.txt  NVRAM boot diagnostics (if present)\n"
+        )
+        collected.append("README.txt")
+
+        # 3) Full raw dumps.
+        if _run_to_file(["/usr/sbin/ioreg", "-l", "-w0"], base / "ioreg-full.txt", 120):
+            collected.append("ioreg-full.txt")
+        if _run_to_file(["/usr/sbin/nvram", "-xp"], base / "nvram-all.xml", 30):
+            collected.append("nvram-all.xml")
+        for dtype in ("SPHardwareDataType", "SPiBridgeDataType", "SPNVMeDataType", "SPStorageDataType"):
+            if _run_to_file(["/usr/sbin/system_profiler", dtype], base / f"system_profiler-{dtype}.txt", 60):
+                collected.append(f"system_profiler-{dtype}.txt")
+        if _run_to_file(["/usr/sbin/sysctl", "hw.model", "hw.target", "machdep.cpu.brand_string", "kern.bootargs"], base / "sysctl.txt", 15):
+            collected.append("sysctl.txt")
+        if _run_to_file(["/usr/sbin/kextstat"], base / "kextstat.txt", 30):
+            collected.append("kextstat.txt")
+
+        # 4) Each SEP / keystore driver node separately (easy to diff class-by-class).
+        for cls in ("AppleSEPManager", "AppleSEPManagerIntel", "AppleKeyStore", "AppleSEPKeyStore",
+                    "AppleSSE", "AppleCredentialManager", "AppleEffaceableStorage"):
+            if _run_to_file(["/usr/sbin/ioreg", "-c", cls, "-w0", "-l"], base / f"ioreg-{cls}.txt", 30):
+                collected.append(f"ioreg-{cls}.txt")
+
+        # 5) NVRAM boot diagnostics as plain text (panic is the key line).
+        for var, fname in (("aapl,panic-info", "panic-info.txt"), ("AAPL,preoslog", "preoslog.txt")):
+            r = subprocess.run(["/usr/sbin/nvram", var], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            text = _printable(r.stdout) if r.returncode == 0 else ""
+            if text.strip():
+                (base / fname).write_text(text)
+                collected.append(fname)
+
+        # 6) The config.plist actually in use + OpenCore DEBUG log from a mounted ESP.
+        cfg_candidates = [
+            Path(self.constants.opencore_release_folder) / "EFI/OC/config.plist" if self.constants.opencore_release_folder else None,
+            Path("/Volumes/EFI/EFI/OC/config.plist"),
+            Path("/Volumes/EFI 1/EFI/OC/config.plist"),
+        ]
+        for cfg in cfg_candidates:
+            if cfg and cfg.exists():
+                try:
+                    shutil.copy(cfg, base / "config.plist")
+                    collected.append("config.plist")
+                    break
+                except Exception:
+                    pass
+        for efi_oc in (Path("/Volumes/EFI/EFI/OC"), Path("/Volumes/EFI 1/EFI/OC")):
+            if not efi_oc.exists():
+                continue
+            for log in sorted(efi_oc.glob("opencore-*.txt"), key=lambda p: p.stat().st_mtime, reverse=True)[:3]:
+                try:
+                    shutil.copy(log, base / log.name)
+                    collected.append(log.name)
+                except Exception:
+                    pass
+            break
+
+        logging.info(f"Saved T2 master bundle ({label}) to {base}: {collected}")
+        wx.MessageDialog(
+            self.parent,
+            f"Saved the '{label}' T2 master bundle to:\n{base}\n\n"
+            f"{len(collected)} items collected.\n\n"
+            "Capture the OTHER label too (one 'native', one 'opencore'), then the "
+            "two folders can be compared to find exactly what OpenCore changes.\n\n"
+            "See docs/T2-SEP-Investigation.md for the full protocol.",
             "Success", wx.OK | wx.ICON_INFORMATION,
         ).ShowModal()
 
