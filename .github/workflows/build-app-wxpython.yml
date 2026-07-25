@@ -38,6 +38,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history + tags so the changelog can diff against the previous
+          # rolling build (the "latest" tag) instead of a shallow clone.
+          fetch-depth: 0
 
       - name: Ensure Rosetta 2 (x86_64 emulation on arm64 runner)
         run: sudo softwareupdate --install-rosetta --agree-to-license
@@ -108,6 +112,34 @@ jobs:
           name: OpenCore-Patcher-Uninstaller.pkg
           path: ./dist/OpenCore-Patcher-Uninstaller.pkg
 
+      - name: Assemble human-readable release notes
+        run: |
+          # The rolling "latest" tag still points at the PREVIOUS build here
+          # (this run overwrites it later), so diff from it for the changelog.
+          git fetch --force --tags origin || true
+          PREV_SHA="$(git rev-list -n 1 latest 2>/dev/null || true)"
+          echo "Previous rolling build commit: ${PREV_SHA:-<none>}"
+          arch -x86_64 "$PYBIN" ci_tooling/generate_changelog.py "$PREV_SHA" > changelog.md
+          echo "----- changelog.md -----"
+          cat changelog.md
+
+          {
+            echo "Automated CI build from \`main\` — always the newest commit."
+            echo ""
+            echo "- Build version: \`${{ env.build_version }}\`"
+            echo "- Commit: ${{ github.sha }}"
+            echo ""
+            cat changelog.md
+            echo ""
+            echo "---"
+            echo ""
+            echo "The build version (\`<ver>-YYYYMMDD-HHMM\`) is unique per build and shows in the About box, the log filename, config.plist Build-Version and the NVRAM OCLP-Version — use it to confirm exactly which build you tested."
+            echo ""
+            echo "Experimental T2 (MacBookAir8,1 / 8,2) support:"
+            echo "- Real T2 keystore exercised (T1 bypass disabled), DEBUG OpenCore + file logging so an accessible EFI/OC/opencore-*.txt and NVRAM panic log are captured if the SEP times out"
+            echo "- EFI/BOOT/BOOTx64.efi so the USB entry appears in the T2 Startup Manager"
+          } > release_notes.md
+
       - name: Publish Rolling CI Release (main / manual)
         if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
@@ -123,22 +155,7 @@ jobs:
             ./dist/AutoPkg-Assets.pkg
             ./dist/OpenCore-Patcher.pkg
             ./dist/OpenCore-Patcher-Uninstaller.pkg
-          body: |
-            Automated CI build from `main` — always the newest commit.
-
-            - Build version: `${{ env.build_version }}`
-            - Commit: ${{ github.sha }}
-            - Built:  ${{ github.event.head_commit.timestamp }}
-
-            The build version (`<ver>-YYYYMMDD-HHMM`) is unique per build and shows
-            in the About box, the log filename, config.plist Build-Version and the
-            NVRAM OCLP-Version — use it to confirm exactly which build you tested.
-
-            Experimental T2 (MacBookAir8,1 / 8,2) support:
-            - Real T2 keystore exercised (T1 bypass disabled), DEBUG OpenCore +
-              file logging so an accessible EFI/OC/opencore-*.txt and NVRAM panic
-              log are captured if the SEP times out
-            - EFI/BOOT/BOOTx64.efi so the USB entry appears in the T2 Startup Manager
+          body_path: release_notes.md
 
       - name: Create Tagged Release
         if: startsWith(github.ref, 'refs/tags/')
@@ -152,6 +169,7 @@ jobs:
           body: |
             ## OpenCore Legacy Patcher ${{ github.ref_name }}
 
-            ### Changes
-            - Added T2 Mac support for MacBookAir8,1 (MacBook Air 2018) and MacBookAir8,2 (MacBook Air 2019)
-            - Fixes USB boot entry not appearing in T2 Mac Startup Manager (adds EFI/BOOT/BOOTx64.efi)
+            Build version: `${{ env.build_version }}`
+
+            See the changelog on the rolling `latest` pre-release for the
+            detailed per-build change list.
