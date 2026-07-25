@@ -217,6 +217,27 @@ Fix: special-case `model_array.T2_MacBookAir` in `_smbios_probe` to force
 `sbvmm` in `_re_generate_patch_arguments` (secure_status is user-toggleable in
 Settings).
 
+## 7c. Keystore comparison on hardware (2026-07-25)
+
+Both keystores were tested on the MacBookAir8,1 booting the **internal Sonoma**
+through OpenCore:
+
+| Keystore | Result |
+|---|---|
+| Real T2 keystore | Boots to the **login screen** (kernel up, WindowServer rendering), hangs at authentication |
+| T1 substitution   | Hangs earlier, at the **Apple logo** |
+
+The T1 stack blocks AppleKeyStore / AppleSSE / AppleCredentialManager, but the
+internal volume is SEP-backed, so without them it cannot even be unlocked and
+mounted — the boot dies before WindowServer. **The T1 substitution is therefore
+the wrong tool for booting an installed, SEP-backed system**, and the default is
+now off (`constants.t2_t1_keystore = False`), toggleable in
+Settings > Developer for further experiments.
+
+Note the login-screen hang only blocks booting the *installed internal* system.
+It does **not** block the USB installer / recovery route, which boots fine with
+the real keystore because it never has to unlock the internal volume.
+
 ## 8. Honest assessment
 
 This is a genuinely hard, upstream-unsolved problem as of early 2026. Collecting
