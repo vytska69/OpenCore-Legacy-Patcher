@@ -232,7 +232,7 @@ internal volume is SEP-backed, so without them it cannot even be unlocked and
 mounted — the boot dies before WindowServer. **The T1 substitution is therefore
 the wrong tool for booting an installed, SEP-backed system**, and the default is
 now off (`constants.t2_t1_keystore = False`), toggleable in
-Settings > Developer for further experiments.
+Settings > Security for further experiments.
 
 Note the login-screen hang only blocks booting the *installed internal* system.
 It does **not** block the USB installer / recovery route, which boots fine with

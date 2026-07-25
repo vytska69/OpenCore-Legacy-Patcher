@@ -413,7 +413,7 @@ class BuildMiscellaneous:
         # Trade-off: SEP-backed features are lost (FileVault/storage keys and
         # activation/device identity). Acceptable for reaching a usable desktop;
         # to test the real keystore again, drop T2_MacBookAir from the list.
-        # Toggleable for T2 (Settings > Developer > "T2: use T1 keystore
+        # Toggleable for T2 (Settings > Security > "T2: use T1 keystore
         # substitution") so both keystores can be compared by rebuilding locally,
         # without waiting on a new CI build.
         _t1_models = ["MacBookPro13,2", "MacBookPro13,3", "MacBookPro14,2", "MacBookPro14,3"]
@@ -494,7 +494,7 @@ class BuildMiscellaneous:
         #    is the stronger alternative, but on this hardware it STOPPED THE
         #    INSTALLER FROM BOOTING AT ALL — with the bit set, macOS takes VM code
         #    paths that do not hold on a real T2. It is therefore off by default
-        #    and opt-in via Settings > Developer, kept only for experiments.
+        #    and opt-in via Settings > Security, kept only for experiments.
         if self.constants.t2_vmm_cpuid is True:
             logging.info("- T2 Mac: setting CPUID VMM bit (experimental, known to break booting)")
             self.config["Kernel"]["Emulate"]["Cpuid1Data"] = binascii.unhexlify("00000000000000000000008000000000")
