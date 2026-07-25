@@ -413,11 +413,19 @@ class BuildMiscellaneous:
         # Trade-off: SEP-backed features are lost (FileVault/storage keys and
         # activation/device identity). Acceptable for reaching a usable desktop;
         # to test the real keystore again, drop T2_MacBookAir from the list.
+        # Toggleable for T2 (Settings > Developer > "T2: use T1 keystore
+        # substitution") so both keystores can be compared by rebuilding locally,
+        # without waiting on a new CI build.
         _t1_models = ["MacBookPro13,2", "MacBookPro13,3", "MacBookPro14,2", "MacBookPro14,3"]
-        if self.model not in _t1_models and self.model not in model_array.T2_MacBookAir:
+        _is_t2 = self.model in model_array.T2_MacBookAir
+
+        if self.model not in _t1_models and not _is_t2:
             return
 
-        if self.model in model_array.T2_MacBookAir:
+        if _is_t2:
+            if self.constants.t2_t1_keystore is False:
+                logging.info("- T2 Mac: T1 keystore substitution disabled, using the real T2 keystore")
+                return
             logging.info("- T2 Mac: substituting the T1 keystore stack to bypass the SEP login hang")
         else:
             logging.info("- Enabling T1 Security Chip support")

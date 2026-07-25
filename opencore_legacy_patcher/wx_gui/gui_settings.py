@@ -631,6 +631,19 @@ class SettingsFrame(wx.Frame):
                         "Note: Incompatible with Root Patching.",
                     ],
                 },
+                "T2: use T1 keystore substitution": {
+                    "type": "checkbox",
+                    "value": self.constants.t2_t1_keystore,
+                    "variable": "t2_t1_keystore",
+                    "description": [
+                        "MacBookAir8,x only. Replaces the T2 keystore",
+                        "with the T1-era stack, which never performs the",
+                        "SEP handshake that hangs the login screen.",
+                        "Cost: FileVault and activation stop working.",
+                        "Turn OFF to exercise the real T2 keystore.",
+                        "Rebuild and reinstall OpenCore after changing.",
+                    ],
+                },
                 "System Integrity Protection": {
                     "type": "title",
                 },
