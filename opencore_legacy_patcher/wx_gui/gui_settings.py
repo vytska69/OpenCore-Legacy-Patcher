@@ -894,6 +894,16 @@ class SettingsFrame(wx.Frame):
                         "SysReport from a mounted EFI (mount it first).",
                     ],
                 },
+                "Save T2 / SEP info report": {
+                    "type": "button",
+                    "function": self.on_save_t2_sep_report,
+                    "description": [
+                        "Dump the live T2 / Secure Enclave state to one",
+                        "readable text file: hardware + T2 controller,",
+                        "board-id, boot-args, the SEP/AppleKeyStore ioreg",
+                        "nodes, loaded keystore kexts and recent SEP log.",
+                    ],
+                },
 
                 "Developer Root Volume Patching": {
                     "type": "title",
@@ -1494,6 +1504,109 @@ Hardware Information:
         wx.MessageDialog(
             self.parent,
             f"Saved diagnostics to:\n{base}\n\nFiles collected:\n- " + "\n- ".join(collected),
+            "Success", wx.OK | wx.ICON_INFORMATION,
+        ).ShowModal()
+
+
+    def on_save_t2_sep_report(self, event: wx.Event) -> None:
+        # Dump the LIVE T2 / Secure Enclave state into a single readable text
+        # file, so a (screen-reader) user can capture everything about the SEP
+        # subsystem in one pass — most useful run natively (Sonoma), where the
+        # SEP is alive, to characterise the hardware, but also informative after
+        # a failed OpenCore boot. Every section is labelled so it is easy to
+        # navigate by heading with VoiceOver.
+        import time
+
+        def _printable(data) -> str:
+            if isinstance(data, str):
+                data = data.encode("latin-1", "ignore")
+            return "".join(chr(b) if (0x20 <= b < 0x7F or b in (0x09, 0x0A)) else "" for b in data)
+
+        def _run(argv, timeout=60) -> str:
+            try:
+                r = subprocess.run(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout)
+                text = r.stdout.decode("utf-8", "replace") if r.stdout else ""
+                text = text.strip()
+                # Bound any single section so the report stays manageable.
+                if len(text) > 200_000:
+                    text = text[:200_000] + "\n... [truncated] ..."
+                return text or "(no output)"
+            except subprocess.TimeoutExpired:
+                return f"(timed out after {timeout}s)"
+            except FileNotFoundError:
+                return f"(command not found: {argv[0]})"
+            except Exception as e:
+                return f"(error: {e})"
+
+        # Ordered sections: (heading, argv, timeout). ioreg SEP/keystore classes
+        # are small; log show is bounded by --last and a timeout.
+        sections = [
+            ("Hardware overview",              ["/usr/sbin/system_profiler", "SPHardwareDataType"], 60),
+            ("Apple T2 / bridgeOS controller", ["/usr/sbin/system_profiler", "SPiBridgeDataType"], 60),
+            ("Model & board-id (IODeviceTree)",["/usr/sbin/ioreg", "-p", "IODeviceTree", "-r", "-d", "1", "-w0"], 30),
+            ("sysctl hardware + boot-args",    ["/usr/sbin/sysctl", "hw.model", "hw.target", "machdep.cpu.brand_string", "kern.bootargs"], 15),
+            ("AppleSEPManager",                ["/usr/sbin/ioreg", "-c", "AppleSEPManager", "-w0", "-l"], 30),
+            ("AppleSEPManagerIntel",           ["/usr/sbin/ioreg", "-c", "AppleSEPManagerIntel", "-w0", "-l"], 30),
+            ("AppleKeyStore",                  ["/usr/sbin/ioreg", "-c", "AppleKeyStore", "-w0", "-l"], 30),
+            ("AppleSEPKeyStore",               ["/usr/sbin/ioreg", "-c", "AppleSEPKeyStore", "-w0", "-l"], 30),
+            ("AppleSSE",                       ["/usr/sbin/ioreg", "-c", "AppleSSE", "-w0", "-l"], 30),
+            ("AppleCredentialManager",         ["/usr/sbin/ioreg", "-c", "AppleCredentialManager", "-w0", "-l"], 30),
+            ("AppleEffaceableStorage",         ["/usr/sbin/ioreg", "-c", "AppleEffaceableStorage", "-w0", "-l"], 30),
+            ("Loaded SEP / keystore / T1-T2 kexts", ["/usr/sbin/kextstat"], 30),
+            ("Recent SEP / AppleKeyStore kernel log (last 60m)",
+             ["/usr/bin/log", "show", "--last", "60m", "--style", "compact",
+              "--predicate",
+              'eventMessage CONTAINS[c] "SEP" OR eventMessage CONTAINS[c] "AppleKeyStore" '
+              'OR eventMessage CONTAINS[c] "keystore" OR eventMessage CONTAINS[c] "sks request"'], 120),
+        ]
+
+        with wx.FileDialog(
+            self.parent, "Save the T2 / SEP report as",
+            defaultFile=f"OCLP-T2-SEP-Report-{time.strftime('%Y%m%d-%H%M%S')}.txt",
+            wildcard="Text files (*.txt)|*.txt",
+            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
+        ) as fileDialog:
+            if fileDialog.ShowModal() == wx.ID_CANCEL:
+                return
+            out_path = Path(fileDialog.GetPath())
+
+        lines = []
+        lines.append("OpenCore Legacy Patcher — T2 / SEP info report")
+        lines.append(f"Generated: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+        lines.append(f"OCLP build: {self.constants.patcher_version}")
+        lines.append(f"Detected model: {self.constants.custom_model or (self.constants.computer.real_model if self.constants.computer else 'unknown')}")
+        try:
+            _is_t2 = (self.constants.custom_model or (self.constants.computer.real_model if self.constants.computer else "")) in model_array.T2_MacBookAir
+        except Exception:
+            _is_t2 = False
+        lines.append(f"Recognised as T2 MacBookAir target: {_is_t2}")
+        # Any SEP panic saved in NVRAM is the single most useful line — surface it early.
+        for var in ("aapl,panic-info", "AAPL,preoslog"):
+            r = subprocess.run(["/usr/sbin/nvram", var], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            val = _printable(r.stdout) if r.returncode == 0 else ""
+            lines.append("")
+            lines.append(f"===== NVRAM {var} =====")
+            lines.append(val.strip() if val.strip() else "(empty)")
+
+        for heading, argv, timeout in sections:
+            lines.append("")
+            lines.append(f"===== {heading} =====")
+            lines.append(f"$ {' '.join(argv)}")
+            lines.append(_run(argv, timeout))
+
+        report = "\n".join(lines) + "\n"
+        try:
+            out_path.write_text(report)
+        except Exception as e:
+            wx.MessageDialog(self.parent, f"Failed to write report:\n{e}", "Error", wx.OK | wx.ICON_ERROR).ShowModal()
+            return
+
+        logging.info(f"Saved T2/SEP report to {out_path} ({len(report)} bytes)")
+        wx.MessageDialog(
+            self.parent,
+            f"Saved the T2 / SEP report to:\n{out_path}\n\n"
+            f"{len(sections) + 2} sections captured. Open it in any text editor "
+            "or read it with VoiceOver — each section starts with a '=====' heading.",
             "Success", wx.OK | wx.ICON_INFORMATION,
         ).ShowModal()
 
