@@ -75,6 +75,27 @@ To start using the project, please see our in-depth guide:
 
 * [OpenCore Legacy Patcher Guide](https://dortania.github.io/OpenCore-Legacy-Patcher/)
 
+### Required: grant this build Full Disk Access
+
+Builds from this fork's CI are **unsigned** — GitHub Actions has no Apple
+Developer ID certificate, so `sign_notarize` prints "Signing and Notarization
+details not provided, skipping", and the privileged helper is compiled with
+`-DDEBUG` to skip its team-ID check (it otherwise only accepts Dortania's signed
+app, team `S74BDJXQMD`).
+
+Consequence: macOS applies stricter TCC rules to an unsigned app, so it **cannot
+write to USB/external volumes** — every write fails with `Operation not
+permitted` (EPERM), and installing OpenCore leaves the EFI partition empty.
+
+Before installing OpenCore to a disk:
+
+1. **System Settings → Privacy & Security → Full Disk Access**
+2. Turn it **on** for OpenCore Legacy Patcher
+3. Quit the app completely (Cmd-Q) and reopen it
+
+The official signed Dortania release does not need this, because its root helper
+accepts the signed app and performs the EFI writes itself.
+
 ## Support
 
 This project is offered on an AS-IS basis, we do not guarantee support for any issues that may arise. However, there is a community server with other passionate users and developers that can aid you:
