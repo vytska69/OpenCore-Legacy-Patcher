@@ -238,6 +238,40 @@ Note the login-screen hang only blocks booting the *installed internal* system.
 It does **not** block the USB installer / recovery route, which boots fine with
 the real keystore because it never has to unlock the internal volume.
 
+## 7d. The T1 substitution is not a SEP bypass — settled by a panic log
+
+Booting the **Sequoia installer** (`root-dmg=file:///BaseSystem/BaseSystem.dmg`,
+Darwin 24.6.0 / 24G720) with the T1 stack enabled panics:
+
+```
+panic: "AppleSEPManager panic for "AppleKeyStore": sks request timeout"
+       @AppleSEPManagerIntel.cpp:809
+
+AppleMobileFileIntegrity : AMFIInitializeLocalSigningPublicKey_Thread
+  -> AppleKeyStore : aks_system_key_get_public -> _aks_operation
+    -> perform_operation -> sep_deliver_msg -> init_sep_endpoint
+      -> SEP request times out -> panic
+```
+
+Two conclusions:
+
+1. **The trigger is AMFI**, initialising its local signing public key, which asks
+   the keystore for a system key and therefore the SEP.
+2. **The "T1 keystore" still talks to the SEP.** Its payload declares
+   `CFBundleIdentifier com.apple.driver.AppleKeyStore`, `CFBundleVersion 2` — the
+   same version the real one reports, so the backtrace cannot distinguish them.
+   More importantly the payload is macOS 13.6's AppleKeyStore, i.e. the very
+   binary that also serves T2 Macs; it is an *older* keystore, not a *SEP-free*
+   one. On a T2 it still performs SEP mailbox IPC.
+
+So the T1 substitution was never capable of bypassing the T2 SEP. That matches
+the observed behaviour (worse, not better: Apple-logo hang / panic) and settles
+the question — this line of attack is closed. Default stays off.
+
+Note the real keystore does **not** panic here: with it, the same Sequoia
+installer boots fine and reaches its compatibility dialog, so the SEP answers
+AMFI correctly. The remaining work is purely the installer's compatibility gates.
+
 ## 8. Honest assessment
 
 This is a genuinely hard, upstream-unsolved problem as of early 2026. Collecting
