@@ -472,6 +472,32 @@ class BuildMiscellaneous:
         self.config["Misc"]["Debug"]["DisableWatchDog"] = True
         self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -no_compat_check"
 
+        # Compatibility gates. The Sequoia installer refused to run with
+        # "macOS Sequoia is not compatible with this Mac", so close every gate,
+        # not just the kernel one that -no_compat_check covers. These are plain
+        # config writes, so they are order-independent with respect to the
+        # firmware/smbios builders that normally own them.
+        #
+        # 1. boot.efi's board-id check. smbios.py only enables this Booter patch
+        #    when serial_settings == "None"; this model defaults to "Minimal" and
+        #    so got the SMC exemption path instead, leaving the board-id gate up.
+        #    MacBookAir8,1's real board-id (Mac-827FAC58A8FDFA22) is not in
+        #    Sequoia's supported list, so the check must be skipped.
+        logging.info("- T2 Mac: enabling Board ID exemption patch")
+        support.BuildSupport(self.model, self.constants, self.config).get_item_by_kv(
+            self.config["Booter"]["Patch"], "Comment", "Skip Board ID check"
+        )["Enabled"] = True
+
+        # 2. The installer app's own model check, which is bypassed by looking
+        #    like a VM. RestrictEvents' "sbvmm" does this dynamically (forced on
+        #    for this model in _re_generate_patch_arguments), but it depends on
+        #    Lilu + RestrictEvents loading and on the installer being detected in
+        #    time. Also set the CPUID hypervisor bit statically so the VM identity
+        #    is present unconditionally from the very first instruction.
+        logging.info("- T2 Mac: setting CPUID VMM bit for installer compatibility")
+        self.config["Kernel"]["Emulate"]["Cpuid1Data"] = binascii.unhexlify("00000000000000000000008000000000")
+        self.config["Kernel"]["Emulate"]["Cpuid1Mask"] = binascii.unhexlify("00000000000000000000008000000000")
+
         # AMFIPass is required for injected Lilu plugins (WhateverGreen, etc.) to
         # load under Sequoia's AMFI. security.py only enables it when the model's
         # Max OS is BELOW Sonoma; the MacBookAir8,x maxes at Sonoma, so that
