@@ -35,7 +35,14 @@ class GeneratePackage:
         """
         _welcome = ""
 
-        _welcome += "# Overview\n"
+        # Lead with the exact build version so it is the first thing announced
+        # (VoiceOver reads the Introduction heading immediately on the Installer's
+        # first step), letting a tester confirm which build they are installing
+        # before ever opening the app.
+        _welcome += f"# OpenCore Legacy Patcher {constants.Constants().patcher_version}\n"
+        _welcome += f"Build version: **{constants.Constants().patcher_version}**\n\n"
+
+        _welcome += "## Overview\n"
         _welcome += f"This package will install the OpenCore Legacy Patcher application (v{constants.Constants().patcher_version}) on your system."
 
         _welcome += "\n\nAdditionally, a shortcut for OpenCore Legacy Patcher will be added in the '/Applications' folder."
@@ -97,7 +104,7 @@ class GeneratePackage:
             pkg_background="./ci_tooling/pkg_assets/PkgBackground-Uninstaller.png",
             pkg_preinstall_script=_tmp_uninstall.name,
             pkg_as_distribution=True,
-            pkg_title="OpenCore Legacy Patcher Uninstaller",
+            pkg_title=f"OpenCore Legacy Patcher Uninstaller {constants.Constants().patcher_version}",
             pkg_welcome=self._generate_uninstaller_welcome(),
         ).build() is True
 
@@ -120,7 +127,9 @@ class GeneratePackage:
             pkg_preinstall_script=_tmp_pkg_preinstall.name,
             pkg_postinstall_script=_tmp_pkg_postinstall.name,
             pkg_file_structure=self._files,
-            pkg_title="OpenCore Legacy Patcher",
+            # Version in the title so Installer.app's window title / heading (the
+            # first thing VoiceOver announces) names the exact build.
+            pkg_title=f"OpenCore Legacy Patcher {constants.Constants().patcher_version}",
             pkg_welcome=self._generate_installer_welcome(),
         ).build() is True
 
