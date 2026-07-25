@@ -453,32 +453,35 @@ class BuildMiscellaneous:
 
     def _t2_handling(self) -> None:
         """
-        T2 Security Chip Handler (MacBookAir8,1 / 8,2) — diagnostic build
+        T2 Security Chip Handler (MacBookAir8,1 / 8,2)
 
-        Booting the Sequoia installer through OpenCore on the MacBookAir8,x
-        breaks the T2 SEP/AppleKeyStore handshake (sks request timeout), which
-        stalls the installer (grey screen / activation). Booting WITHOUT
-        OpenCore leaves the SEP working but hits the installer's board-id
-        compatibility gate instead. This handler is the OpenCore-side test path:
-        it exercises the REAL keystore (the T1 bypass is disabled for T2 in
-        _t1_handling), forces DEBUG OpenCore + file logging in build._build_efi()
-        so there is an accessible EFI/OC/opencore-*.txt and a NVRAM panic log,
-        enables AMFIPass (needed for Lilu plugins under Sequoia since the model's
-        Max OS is Sonoma), and injects the native Intel UHD 617 framebuffer /
-        panel DeviceProperties.
+        Applies the settings needed to boot macOS Sequoia on a model whose Max OS
+        is Sonoma:
+
+        - `-no_compat_check` for the kernel's own compatibility gate.
+        - AMFIPass, needed for injected Lilu plugins under Sequoia (security.py
+          only enables it when Max OS is below Sonoma, which skips this model).
+        - The native Intel UHD 617 framebuffer / panel DeviceProperties.
+        - DisableWatchDog, so a panic is written to NVRAM rather than the machine
+          being reset before it lands.
+
+        The real T2 keystore is used; the T1 substitution is off by default (see
+        _t1_handling). Two further bypasses — the boot.efi Board ID patch and the
+        static CPUID VMM bit — are opt-in via Settings, both off by default so
+        this matches the last configuration known to boot.
+
+        Boot logging is NOT forced here: builds use the fast RELEASE OpenCore
+        with no `-v`. Enable "Verbose Boot" / "DEBUG OpenCore" in Settings when a
+        boot log is actually needed.
         """
         if self.model not in model_array.T2_MacBookAir:
             return
 
-        # REAL-KEYSTORE TEST (T1 bypass NOT applied — see _t1_handling):
-        # The actual T2 SEP/AppleKeyStore is exercised here. DEBUG OpenCore +
-        # file logging is on (build._build_efi()), so EFI/OC/opencore-*.txt is a
-        # readable record for the (blind) user to verify the build, and if the
-        # SEP times out it panics ("AppleSEPManager ... sks request timeout"),
-        # which is saved to NVRAM (aapl,panic-info) and readable back in Sonoma.
-        # DisableWatchDog stops the firmware rebooting the machine before that
-        # panic is written.
-        logging.info("- T2 Mac: real-keystore test (accessible logging, panic capture)")
+        # DisableWatchDog: if the SEP does time out ("AppleSEPManager ... sks
+        # request timeout"), the panic is written to NVRAM (aapl,panic-info) and
+        # can be read back in Sonoma. Without this the firmware may reset the
+        # machine before the panic lands.
+        logging.info("- T2 Mac: applying Sequoia compatibility settings")
         self.config["Misc"]["Debug"]["DisableWatchDog"] = True
         self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -no_compat_check"
 
