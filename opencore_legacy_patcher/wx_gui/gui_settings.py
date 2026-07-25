@@ -631,6 +631,18 @@ class SettingsFrame(wx.Frame):
                         "Note: Incompatible with Root Patching.",
                     ],
                 },
+                "T2: skip Board ID check in boot.efi": {
+                    "type": "checkbox",
+                    "value": self.constants.t2_board_id_patch,
+                    "variable": "t2_board_id_patch",
+                    "description": [
+                        "MacBookAir8,x only. Patches boot.efi so it",
+                        "cannot read the supported-board list, getting",
+                        "past 'not compatible'. On by default. Turn OFF",
+                        "if the installer stops booting at all.",
+                        "Rebuild OpenCore after changing.",
+                    ],
+                },
                 "T2: static CPUID VMM bit": {
                     "type": "checkbox",
                     "value": self.constants.t2_vmm_cpuid,

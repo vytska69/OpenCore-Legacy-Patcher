@@ -493,10 +493,16 @@ class BuildMiscellaneous:
         #    so got the SMC exemption path instead, leaving the board-id gate up.
         #    MacBookAir8,1's real board-id (Mac-827FAC58A8FDFA22) is not in
         #    Sequoia's supported list, so the check must be skipped.
-        logging.info("- T2 Mac: enabling Board ID exemption patch")
-        support.BuildSupport(self.model, self.constants, self.config).get_item_by_kv(
-            self.config["Booter"]["Patch"], "Comment", "Skip Board ID check"
-        )["Enabled"] = True
+        #    The patch rewrites the string "PlatformSupport.plist" inside boot.efi
+        #    to dots (Count 0, no kernel constraints), so boot.efi cannot read the
+        #    supported-board list. Toggleable because it was introduced in the
+        #    same commit as the CPUID bit, which broke booting; keeping it
+        #    isolatable lets it be ruled in or out on its own.
+        if self.constants.t2_board_id_patch is True:
+            logging.info("- T2 Mac: enabling Board ID exemption patch")
+            support.BuildSupport(self.model, self.constants, self.config).get_item_by_kv(
+                self.config["Booter"]["Patch"], "Comment", "Skip Board ID check"
+            )["Enabled"] = True
 
         # 2. The installer app's own model check, bypassed by looking like a VM.
         #    RestrictEvents' "sbvmm" does this dynamically (forced on for this

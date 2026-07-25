@@ -195,6 +195,7 @@ class Constants:
         self.secure_status:  bool = False  # Secure Boot Model
         self.t2_t1_keystore: bool = False  # T2 Macs: substitute the T1 keystore stack (off: hardware-tested worse, see docs)
         self.t2_vmm_cpuid:   bool = False  # T2 Macs: static CPUID hypervisor bit (off: broke booting the installer)
+        self.t2_board_id_patch: bool = True  # T2 Macs: boot.efi "Skip Board ID check" patch (installer compatibility)
         self.vault:          bool = False  # EFI Vault
         self.disable_cs_lv:  bool = False  # Disable Library validation
         self.disable_amfi:   bool = False  # Disable AMFI
