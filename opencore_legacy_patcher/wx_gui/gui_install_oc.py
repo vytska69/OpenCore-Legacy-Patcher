@@ -319,12 +319,14 @@ class InstallOCFrame(wx.Frame):
             # screen-reader user who cannot see the empty result).
             wx.MessageDialog(
                 self,
-                "OpenCore was NOT installed to the disk.\n\n"
-                "The EFI partition was left without OpenCore. The most common cause "
-                "is that OpenCore was not built first, or the wrong disk was chosen.\n\n"
-                "Please use 'Build and Install OpenCore', wait for the build to finish, "
-                "then install and pick the correct disk. Details are in the log:\n"
-                "~/Library/Logs/Dortania/",
+                "OpenCore was NOT installed — the EFI partition was left empty.\n\n"
+                "The usual cause is that macOS is blocking writes to the disk: "
+                "without Full Disk Access, an app cannot write to USB/external "
+                "volumes and every write fails with 'Operation not permitted'.\n\n"
+                "Fix: open System Settings > Privacy & Security > Full Disk Access, "
+                "turn it ON for OpenCore Legacy Patcher, quit the app completely, "
+                "reopen it and install again.\n\n"
+                "Full details are in the log: ~/Library/Logs/Dortania/",
                 "Install failed", wx.OK | wx.ICON_ERROR,
             ).ShowModal()
 

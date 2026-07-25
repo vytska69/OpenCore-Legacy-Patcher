@@ -129,6 +129,26 @@ class tui_disk_installation:
             logging.info("Removing preexisting boot.efi")
             subprocess.run(["/bin/rm", mount_path / Path("boot.efi")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
+        # Probe whether this process may actually WRITE to the mounted volume.
+        # On macOS 13+ an app without Full Disk Access cannot write to removable
+        # volumes: every write returns EPERM ("Operation not permitted"), which
+        # surfaces as cp's "No such file or directory" on the destination and as
+        # ditto's "Operation not permitted". Detect it here so the cause is named
+        # instead of leaving a silently empty EFI.
+        self.write_denied = False
+        _probe = mount_path / Path(".oclp-write-test")
+        try:
+            _probe.touch()
+            _probe.unlink()
+        except OSError as e:
+            self.write_denied = True
+            logging.error(f"Cannot write to {mount_path}: {e}")
+            logging.error(
+                "macOS is denying writes to this volume. Grant OpenCore Legacy Patcher "
+                "Full Disk Access (System Settings > Privacy & Security > Full Disk Access), "
+                "then run the install again."
+            )
+
         logging.info("Copying OpenCore onto EFI partition")
         # Original OCLP copy method: plain `cp -r`. The "unable to copy extended
         # attributes" warnings on a FAT32 EFI volume are NON-fatal — cp still
@@ -185,10 +205,11 @@ class tui_disk_installation:
                 subprocess_wrapper.run_as_root(["/bin/mkdir", "-p", mount_path / Path("EFI/BOOT")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 subprocess_wrapper.run_as_root(["/bin/cp", _t2_boot_efi_root, mount_path / Path("EFI/BOOT/BOOTx64.efi")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-        if (mount_path / Path("EFI/OC/OpenCore.efi")).exists():
+        installed_ok = (mount_path / Path("EFI/OC/OpenCore.efi")).exists()
+        if installed_ok:
             logging.info("Verified OpenCore is installed onto the EFI partition")
         else:
-            logging.warning("OpenCore.efi was not found on the EFI partition after copy")
+            logging.error("OpenCore.efi was not found on the EFI partition after copy")
 
         if self._determine_sd_card(sd_type) is True:
             logging.info("Adding SD Card icon")
@@ -208,6 +229,10 @@ class tui_disk_installation:
         if not self.constants.recovery_status:
             logging.info("Unmounting EFI partition")
             subprocess.run(["/usr/sbin/diskutil", "umount", mount_path], stdout=subprocess.PIPE).stdout.decode().strip().encode()
+
+        if not installed_ok:
+            logging.error("OpenCore transfer FAILED — the EFI partition was left without OpenCore")
+            return False
 
         logging.info("OpenCore transfer complete")
 
