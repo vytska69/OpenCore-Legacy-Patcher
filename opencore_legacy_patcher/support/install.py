@@ -137,15 +137,6 @@ class tui_disk_installation:
         if Path(self.constants.opencore_release_folder / Path("boot.efi")).exists():
             subprocess.run(["/bin/cp", self.constants.opencore_release_folder / Path("boot.efi"), mount_path / Path("boot.efi")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-        # T2 Macs need EFI/BOOT/BOOTx64.efi so their Startup Manager shows an "EFI Boot" entry.
-        # Force boot_efi=True before the conversion block so the standard path handles it.
-        _t2_models = ["MacBookAir8,1", "MacBookAir8,2"]
-        _current_model = self.constants.custom_model or (
-            self.constants.computer.real_model if self.constants.computer else None
-        )
-        if _current_model in _t2_models:
-            self.constants.boot_efi = True
-
         if self.constants.boot_efi is True:
             logging.info("Converting Bootstrap to BOOTx64.efi")
             # Use the same plain-subprocess /bin tools as the surrounding EFI
@@ -157,6 +148,24 @@ class tui_disk_installation:
             subprocess.run(["/bin/mkdir", "-p", mount_path / Path("EFI/BOOT")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             subprocess.run(["/bin/mv", mount_path / Path("System/Library/CoreServices/boot.efi"), mount_path / Path("EFI/BOOT/BOOTx64.efi")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             subprocess.run(["/bin/rm", "-rf", mount_path / Path("System")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        # T2 Macs: provide BOTH boot entry styles so the Startup Manager reliably
+        # shows an "EFI Boot" item. The standard, upstream-proven entry is the
+        # blessed System/Library/CoreServices/boot.efi that the Mac firmware
+        # auto-detects (kept above, NOT removed); additionally drop a copy at the
+        # UEFI removable-media path EFI/BOOT/BOOTx64.efi. Whichever the T2
+        # firmware honours, an entry appears. (An earlier revision MOVED boot.efi
+        # to BOOTx64 and deleted System, which removed the very entry the firmware
+        # shows — that regression is undone by copying instead of moving.)
+        _t2_models = ["MacBookAir8,1", "MacBookAir8,2"]
+        _current_model = self.constants.custom_model or (
+            self.constants.computer.real_model if self.constants.computer else None
+        )
+        _t2_boot_efi = mount_path / Path("System/Library/CoreServices/boot.efi")
+        if _current_model in _t2_models and _t2_boot_efi.exists():
+            logging.info("T2 Mac: also adding EFI/BOOT/BOOTx64.efi alongside the blessed boot.efi")
+            subprocess.run(["/bin/mkdir", "-p", mount_path / Path("EFI/BOOT")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            subprocess.run(["/bin/cp", _t2_boot_efi, mount_path / Path("EFI/BOOT/BOOTx64.efi")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         if self._determine_sd_card(sd_type) is True:
             logging.info("Adding SD Card icon")
