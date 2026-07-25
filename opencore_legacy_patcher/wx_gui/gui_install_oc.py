@@ -313,6 +313,20 @@ class InstallOCFrame(wx.Frame):
         else:
             if self.constants.update_stage != gui_support.AutoUpdateStages.INACTIVE:
                 self.constants.update_stage = gui_support.AutoUpdateStages.FINISHED
+            # Surface the failure — previously nothing was shown when the install
+            # returned False, so an install that wrote nothing to the EFI looked
+            # like it had simply finished. Always tell the user (critical for a
+            # screen-reader user who cannot see the empty result).
+            wx.MessageDialog(
+                self,
+                "OpenCore was NOT installed to the disk.\n\n"
+                "The EFI partition was left without OpenCore. The most common cause "
+                "is that OpenCore was not built first, or the wrong disk was chosen.\n\n"
+                "Please use 'Build and Install OpenCore', wait for the build to finish, "
+                "then install and pick the correct disk. Details are in the log:\n"
+                "~/Library/Logs/Dortania/",
+                "Install failed", wx.OK | wx.ICON_ERROR,
+            ).ShowModal()
 
 
     def _install_oc(self, partition: dict) -> None:

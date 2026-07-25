@@ -130,9 +130,30 @@ class tui_disk_installation:
             subprocess.run(["/bin/rm", mount_path / Path("boot.efi")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         logging.info("Copying OpenCore onto EFI partition")
+
+        # Verify the BUILT OpenCore actually exists before copying. A missing or
+        # empty source is exactly how an install can look "fine" in the log yet
+        # leave the EFI partition empty: the cp errors used to be piped away and
+        # never checked. Fail loudly instead.
+        source_oc     = self.constants.opencore_release_folder / Path("EFI/OC")
+        source_system = self.constants.opencore_release_folder / Path("System")
+        if not source_oc.exists():
+            logging.error(f"Install aborted — no built OpenCore found at: {source_oc}")
+            logging.error("Build OpenCore first ('Build and Install OpenCore'), then install to disk.")
+            subprocess.run(["/usr/sbin/diskutil", "umount", mount_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            return False
+
         subprocess.run(["/bin/mkdir", "-p", mount_path / Path("EFI")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        subprocess.run(["/bin/cp", "-r", self.constants.opencore_release_folder / Path("EFI/OC"), mount_path / Path("EFI/OC")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        subprocess.run(["/bin/cp", "-r", self.constants.opencore_release_folder / Path("System"), mount_path / Path("System")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        _copies = [(["/bin/cp", "-r", source_oc, mount_path / Path("EFI/OC")], "EFI/OC")]
+        if source_system.exists():
+            _copies.append((["/bin/cp", "-r", source_system, mount_path / Path("System")], "System"))
+        for _argv, _what in _copies:
+            _r = subprocess.run(_argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            if _r.returncode != 0:
+                logging.error(f"Failed to copy {_what} onto the EFI partition: {_r.stderr.decode('utf-8', 'ignore').strip()}")
+                subprocess.run(["/usr/sbin/diskutil", "umount", mount_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                return False
 
         if Path(self.constants.opencore_release_folder / Path("boot.efi")).exists():
             subprocess.run(["/bin/cp", self.constants.opencore_release_folder / Path("boot.efi"), mount_path / Path("boot.efi")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -166,6 +187,17 @@ class tui_disk_installation:
             logging.info("T2 Mac: also adding EFI/BOOT/BOOTx64.efi alongside the blessed boot.efi")
             subprocess.run(["/bin/mkdir", "-p", mount_path / Path("EFI/BOOT")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             subprocess.run(["/bin/cp", _t2_boot_efi, mount_path / Path("EFI/BOOT/BOOTx64.efi")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        # Final verification: OpenCore.efi MUST be on the EFI partition now. This
+        # turns a silent no-op into a hard, visible failure so an "empty EFI"
+        # never masquerades as a successful install again.
+        installed_oc = mount_path / Path("EFI/OC/OpenCore.efi")
+        if not installed_oc.exists():
+            logging.error(f"Install verification FAILED — OpenCore.efi is not on the EFI partition: {installed_oc}")
+            logging.error(f"EFI partition contents: {[p.name for p in mount_path.iterdir()] if mount_path.exists() else 'unmounted'}")
+            subprocess.run(["/usr/sbin/diskutil", "umount", mount_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            return False
+        logging.info(f"Verified OpenCore is installed: {installed_oc}")
 
         if self._determine_sd_card(sd_type) is True:
             logging.info("Adding SD Card icon")
