@@ -131,6 +131,54 @@ Checklist to reach a complete dataset:
   *booting* (if SEP-limited) install, and native **Sonoma** remains the
   guaranteed fully-working fallback.
 
+## 7a. Findings from the native baseline (2026-07-25)
+
+First `native` master bundle captured on the actual MacBookAir8,1 (SEP alive):
+
+- **Identity**: board-id `Mac-827FAC58A8FDFA22`, bridge-model `J140kAP`, serial
+  `FVFYJ0BKJK7L`, `apple-coprocessor-version = 0x00020000`, T2 firmware
+  `23P5067` / iBridge `23.16.15067`.
+- **The whole genuine SEP stack is healthy**: AppleSEPIntelIOP → `iop-nub,sep`
+  → AppleSEPManager, plus AppleKeyStore (59 retains, many user clients),
+  AppleCredentialManager, AppleSSE, AppleFDEKeyStore, AppleEffaceableStorage /
+  AppleEffaceableNOR, ANS2 — all registered/matched/active. **No** T1
+  substitution kexts (this is the real T2 stack).
+- **🔴 Activation Lock is ENABLED, and the T2 is bound to an iCloud account.**
+  NVRAM carries `fm-activation-locked`, `fm-spstatus`,
+  `fmm-mobileme-token-FMM` and, crucially,
+  `fmm-mobileme-token-FMM-BridgeHasAccount`. So during boot the SEP + Find My
+  actively enforce device identity tied to the real serial/board-id and an
+  Apple ID. This matches the user's own observation that the failed boot heads
+  toward an activation-lock / password step and then stalls.
+
+Implication: the SEP is fully functional and identity-locked to the machine's
+**real** identity. Anything that makes the machine present a different identity
+under OpenCore — or that changes the memory region the SEP mailbox lives in —
+is a prime suspect for the post-EXITBS `sks request timeout`.
+
+Note on the OCLP build config for this model (from source):
+`set_smbios_model_spoof("MacBookAir8,1")` returns MacBookAir8,1 itself and the
+default `serial_settings = "None"`, so by default OCLP keeps the real board-id
+and serial and applies the `sbvmm` installer bypass. The `opencore` snapshot is
+needed to confirm the identity actually presented under OpenCore matches native.
+
+### Highest-value next experiment (safe, reversible, user-only)
+
+**Turn OFF Activation Lock / Find My before the next OpenCore boot test** (System
+Settings → Apple Account → Find My → turn off, i.e. sign the Mac out of Find My;
+needs the owner's Apple ID password). Native boot proves the SEP works *with*
+Activation Lock on — but only because the identity matches. Removing Activation
+Lock takes the identity-enforcement variable out of the OpenCore boot entirely:
+
+- If the OpenCore boot then completes → the wall was activation/identity, and
+  the path forward is identity-preserving OpenCore settings (real SMBIOS +
+  sbvmm), not model spoofing.
+- If it still hangs with the same `sks request timeout` → identity is ruled
+  out, and the fault is the SEP mailbox / memory-map handoff, to be chased via
+  the native-vs-opencore memory-map diff.
+
+Either outcome is progress: it splits the problem in two.
+
 ## 8. Honest assessment
 
 This is a genuinely hard, upstream-unsolved problem as of early 2026. Collecting
