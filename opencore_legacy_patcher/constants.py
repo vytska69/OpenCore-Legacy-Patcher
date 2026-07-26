@@ -207,6 +207,7 @@ class Constants:
         self.t2_devirt_mmio:     bool = False  # Booter > DevirtualiseMmio — the SEP mailbox is MMIO
         self.t2_rebuild_memmap:  bool = False  # Booter > RebuildAppleMemoryMap et al — reserved-region handling
         self.t2_power_timeout:   bool = False  # Kernel > PowerTimeoutKernelPanic — survive driver timeouts
+        self.t2_minimal_model_spoof: bool = False  # T2 Macs: let Minimal spoof the model name too (Moderate's gate pass, without its identity rewrite)
         self.vault:          bool = False  # EFI Vault
         self.disable_cs_lv:  bool = False  # Disable Library validation
         self.disable_amfi:   bool = False  # Disable AMFI

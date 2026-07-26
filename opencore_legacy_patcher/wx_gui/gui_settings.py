@@ -631,6 +631,19 @@ class SettingsFrame(wx.Frame):
                         "Note: Incompatible with Root Patching.",
                     ],
                 },
+                "T2: Minimal spoof also spoofs model": {
+                    "type": "checkbox",
+                    "value": self.constants.t2_minimal_model_spoof,
+                    "variable": "t2_minimal_model_spoof",
+                    "description": [
+                        "MacBookAir8,x only. Use with Minimal + a",
+                        "Sequoia-supported Spoof Model. Passes the",
+                        "installer's model check like Moderate does,",
+                        "but without Moderate's identity rewrite, which",
+                        "breaks Secure Token (no admin password prompt,",
+                        "so the install cannot be authorised).",
+                    ],
+                },
                 "T2 experiment: disable IOMMU": {
                     "type": "checkbox",
                     "value": self.constants.t2_disable_iommu,

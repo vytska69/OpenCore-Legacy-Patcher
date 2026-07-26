@@ -248,9 +248,27 @@ class BuildSMBIOS:
         self.config["PlatformInfo"]["SMBIOS"]["BoardProduct"] = self.spoofed_board
 
         # Model (ensures tables are not mismatched, even if we're not spoofing)
-        self.config["PlatformInfo"]["DataHub"]["SystemProductName"] = self.model
-        self.config["PlatformInfo"]["SMBIOS"]["SystemProductName"] = self.model
-        self.config["PlatformInfo"]["SMBIOS"]["BoardVersion"] = self.model
+        #
+        # T2 exception: Minimal deliberately keeps the REAL model name, spoofing
+        # only the board-id. The macOS installer's compatibility gate keys on the
+        # model, so on a MacBookAir8,x Minimal can never pass it — which is why
+        # Moderate does. But Moderate also does a full identity rewrite
+        # (PlatformInfo Automatic/Generic, DataHub protocol override), and on a T2
+        # that breaks Secure Token: the installer then cannot find a volume owner
+        # and never even asks for the admin password, so the install cannot be
+        # authorised. Spoofing just this one field gives Moderate's gate pass
+        # while leaving the rest of the identity — and Secure Token — intact.
+        _model_id = self.model
+        if (
+            self.model in model_array.T2_MacBookAir
+            and self.constants.t2_minimal_model_spoof is True
+            and self.spoofed_model != self.model
+        ):
+            logging.info(f"- T2 Mac: Minimal also spoofing model name to {self.spoofed_model}")
+            _model_id = self.spoofed_model
+        self.config["PlatformInfo"]["DataHub"]["SystemProductName"] = _model_id
+        self.config["PlatformInfo"]["SMBIOS"]["SystemProductName"] = _model_id
+        self.config["PlatformInfo"]["SMBIOS"]["BoardVersion"] = _model_id
 
         # Avoid incorrect Firmware Updates
         self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["run-efi-updater"] = "No"
