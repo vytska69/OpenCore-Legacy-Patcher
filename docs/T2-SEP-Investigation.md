@@ -272,6 +272,51 @@ Note the real keystore does **not** panic here: with it, the same Sequoia
 installer boots fine and reaches its compatibility dialog, so the SEP answers
 AMFI correctly. The remaining work is purely the installer's compatibility gates.
 
+## 7e. The compatibility gate, mapped (2026-07-26)
+
+Three separate gates exist, and they are not equivalent:
+
+| Gate | Where it runs | Bypass |
+|---|---|---|
+| Kernel | after boot.efi | `-no_compat_check` |
+| `boot.efi` board-id | EFI, reads `PlatformSupport.plist` | "Skip Board ID check" Booter patch |
+| **Installer app** | InstallAssistant GUI | model must look supported |
+
+Hardware results:
+
+- **`startosinstall` does NOT perform the GUI gate.** Run from a natively booted
+  Sonoma — no OpenCore at all — it went straight past the licence step to the
+  authorisation password prompt. The "macOS Sequoia is not compatible with this
+  Mac" dialog is specific to the InstallAssistant **GUI**. Its flag list
+  (`--usage`) contains no compatibility override, so this is not a flag, it is
+  simply a different code path.
+- **Moderate spoof + a Sequoia-supported model passes the GUI gate**, and the
+  installer reaches disk selection with the internal **Macintosh HD visible and
+  selectable** — the old "cannot even format the internal disk" symptom is gone.
+- **But Moderate never prompts for the admin password.** Its full identity
+  rewrite (PlatformInfo Automatic/Generic, DataHub protocol override,
+  UpdateNVRAM/UpdateSMBIOS) breaks Secure Token on a T2: no volume owner is
+  found, so the install cannot be authorised.
+- **Minimal keeps Secure Token intact** and behaves "like native", but by
+  upstream design it spoofs only the board-id and keeps the real model name
+  (`_minimal_serial_patch`: `SystemProductName = self.model`). The gate keys on
+  the model, so Minimal can never pass it.
+
+Resolution: `constants.t2_minimal_model_spoof` makes Minimal set
+SystemProductName/BoardVersion to the spoofed model as well — the one field the
+gate needs — leaving the rest of the identity, and Secure Token, untouched.
+
+| Configuration | Model seen | Gate | Secure Token |
+|---|---|---|---|
+| Minimal + Default | real | fails | works |
+| Minimal + model spoof (toggle off) | real | fails | works |
+| **Minimal + model spoof (toggle on)** | spoofed | **passes** | **works** |
+| Moderate + model spoof | spoofed | passes | **breaks** |
+
+Note the SEP is not implicated in any of this: with the real keystore the
+installer boots and runs normally. The SEP timeout only blocks booting the
+*installed internal* system through OpenCore.
+
 ## 8. Honest assessment
 
 This is a genuinely hard, upstream-unsolved problem as of early 2026. Collecting
