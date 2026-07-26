@@ -631,6 +631,47 @@ class SettingsFrame(wx.Frame):
                         "Note: Incompatible with Root Patching.",
                     ],
                 },
+                "T2 experiment: disable IOMMU": {
+                    "type": "checkbox",
+                    "value": self.constants.t2_disable_iommu,
+                    "variable": "t2_disable_iommu",
+                    "description": [
+                        "The SEP and the SSD controller sit behind",
+                        "AppleVTD. Turns off DMA remapping, in case that",
+                        "is what stalls the SEP. Enable ONE experiment",
+                        "at a time, then rebuild OpenCore.",
+                    ],
+                },
+                "T2 experiment: devirtualise MMIO": {
+                    "type": "checkbox",
+                    "value": self.constants.t2_devirt_mmio,
+                    "variable": "t2_devirt_mmio",
+                    "description": [
+                        "The SEP mailbox is memory-mapped I/O. Changes",
+                        "how those regions survive the handoff to the",
+                        "kernel. Rebuild OpenCore after changing.",
+                    ],
+                },
+                "T2 experiment: rebuild memory map": {
+                    "type": "checkbox",
+                    "value": self.constants.t2_rebuild_memmap,
+                    "variable": "t2_rebuild_memmap",
+                    "description": [
+                        "The SEP firmware lives in a reserved region.",
+                        "Rebuilds the Apple memory map and syncs runtime",
+                        "permissions. Rebuild OpenCore after changing.",
+                    ],
+                },
+                "T2 experiment: survive driver timeouts": {
+                    "type": "checkbox",
+                    "value": self.constants.t2_power_timeout,
+                    "variable": "t2_power_timeout",
+                    "description": [
+                        "Logs a driver timeout instead of panicking,",
+                        "which may be enough to get past a slow SEP.",
+                        "Rebuild OpenCore after changing.",
+                    ],
+                },
                 "T2: fast boot (shorten pre-SEP time)": {
                     "type": "checkbox",
                     "value": self.constants.t2_fast_boot,

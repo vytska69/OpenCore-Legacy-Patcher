@@ -200,6 +200,13 @@ class Constants:
         self.t2_board_id_patch: bool = False  # T2 Macs: boot.efi "Skip Board ID check" patch (experimental)
         self.t2_skip_usb_map:   bool = False  # T2 Macs: skip USB-Map.kext injection (experimental)
         self.t2_fast_boot:      bool = False  # T2 Macs: skip OpenCanopy graphics + 1s picker, to shorten the pre-SEP boot
+        # SEP-boot experiments. All default off so the build matches the last
+        # known-booting configuration; each isolates one hypothesis (see
+        # docs/T2-SEP-Investigation.md).
+        self.t2_disable_iommu:   bool = False  # Kernel > DisableIoMapper — SEP/ANS2 sit behind AppleVTD
+        self.t2_devirt_mmio:     bool = False  # Booter > DevirtualiseMmio — the SEP mailbox is MMIO
+        self.t2_rebuild_memmap:  bool = False  # Booter > RebuildAppleMemoryMap et al — reserved-region handling
+        self.t2_power_timeout:   bool = False  # Kernel > PowerTimeoutKernelPanic — survive driver timeouts
         self.vault:          bool = False  # EFI Vault
         self.disable_cs_lv:  bool = False  # Disable Library validation
         self.disable_amfi:   bool = False  # Disable AMFI

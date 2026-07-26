@@ -467,6 +467,46 @@ class BuildMiscellaneous:
         support.BuildSupport(self.model, self.constants, self.config).enable_kext("KernelRelayHost.kext", self.constants.kernel_relay_version, self.constants.kernel_relay_path)
 
 
+    def _t2_sep_experiments(self) -> None:
+        """
+        Opt-in experiments aimed at the T2 SEP/AppleKeyStore boot failure.
+
+        Each isolates one hypothesis and all default off, so the build matches
+        the last known-booting configuration unless a switch is enabled in
+        Settings > Security. Enable ONE at a time, rebuild OpenCore and retest —
+        enabling several at once makes the result uninterpretable.
+        """
+
+        # AppleVTD/IOMMU. The SEP and the ANS2 storage controller sit behind the
+        # IOMMU (native ioreg shows iommu-parent = AppleVTDDeviceMapper and
+        # IOPCIUseDeviceMapper = Yes on these devices). If DMA remapping differs
+        # under OpenCore, the SEP's mailbox traffic can fail and time out.
+        if self.constants.t2_disable_iommu is True:
+            logging.info("- T2 Mac [experiment]: disabling IOMMU (DisableIoMapper)")
+            self.config["Kernel"]["Quirks"]["DisableIoMapper"] = True
+
+        # The SEP mailbox is memory-mapped I/O. Devirtualising MMIO changes how
+        # those regions survive the ExitBootServices handoff.
+        if self.constants.t2_devirt_mmio is True:
+            logging.info("- T2 Mac [experiment]: enabling DevirtualiseMmio")
+            self.config["Booter"]["Quirks"]["DevirtualiseMmio"] = True
+
+        # Reserved-region handling across the handoff. iBoot/bridgeOS leaves the
+        # SEP firmware in a reserved region; rebuilding the memory map is the
+        # leading hypothesis for why only the Air's firmware fails here.
+        if self.constants.t2_rebuild_memmap is True:
+            logging.info("- T2 Mac [experiment]: rebuilding the Apple memory map")
+            self.config["Booter"]["Quirks"]["RebuildAppleMemoryMap"] = True
+            self.config["Booter"]["Quirks"]["SyncRuntimePermissions"] = True
+            self.config["Booter"]["Quirks"]["ProtectMemoryRegions"] = True
+
+        # Turns driver timeouts into a logged stall instead of an immediate
+        # panic, which can be enough to get past a transient SEP delay.
+        if self.constants.t2_power_timeout is True:
+            logging.info("- T2 Mac [experiment]: enabling PowerTimeoutKernelPanic")
+            self.config["Kernel"]["Quirks"]["PowerTimeoutKernelPanic"] = True
+
+
     def _t2_handling(self) -> None:
         """
         T2 Security Chip Handler (MacBookAir8,1 / 8,2)
@@ -498,6 +538,7 @@ class BuildMiscellaneous:
         # can be read back in Sonoma. Without this the firmware may reset the
         # machine before the panic lands.
         logging.info("- T2 Mac: applying Sequoia compatibility settings")
+        self._t2_sep_experiments()
         self.config["Misc"]["Debug"]["DisableWatchDog"] = True
         self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] += " -no_compat_check"
 
