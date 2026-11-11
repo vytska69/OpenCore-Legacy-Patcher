@@ -20,7 +20,8 @@ from . import (
 from ..datasets import (
     smbios_data,
     cpu_data,
-    os_data
+    os_data,
+    model_array
 )
 
 
@@ -109,6 +110,10 @@ class GenerateDefaults:
             else:
                 global_settings.GlobalEnviromentSettings().write_property("MacBookPro_TeraScale_2_Accel", False)
                 self.constants.allow_ts2_accel = False
+
+        if self.model in model_array.T2_MacBookAir:
+            # T2 Startup Manager does not list the external drive without EFI/BOOT/BOOTx64.efi
+            self.constants.boot_efi = True
 
         if self.model in ["MacPro3,1", "Xserve2,1"]:
             self.constants.force_quad_thread = True

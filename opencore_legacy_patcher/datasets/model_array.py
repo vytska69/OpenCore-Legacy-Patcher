@@ -24,8 +24,8 @@ SupportedSMBIOS = [
     "MacBookAir6,2",
     "MacBookAir7,1",
     "MacBookAir7,2",
-    # "MacBookAir8,1",
-    # "MacBookAir8,2",
+    "MacBookAir8,1",
+    "MacBookAir8,2",
     # MacBook Pro
     "MacBookPro4,1",
     "MacBookPro5,1",
@@ -362,3 +362,5 @@ Missing_USB_Map_Ventura = [
     "iMac16,2",
     "iMac17,1",
 ]
+
+T2_MacBookAir = ["MacBookAir8,1", "MacBookAir8,2"]

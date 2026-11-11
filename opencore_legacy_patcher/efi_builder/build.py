@@ -16,6 +16,8 @@ from .. import constants
 
 from ..support import utilities
 
+from ..datasets import model_array
+
 from .networking import (
     wired,
     wireless
@@ -138,6 +140,32 @@ class BuildOpenCore:
         self.config["NVRAM"]["Add"]["4D1FDA02-38C7-4A6A-9CC6-4BCCA8B30102"]["OCLP-Model"] = self.model
 
 
+    def _t2_minimal_handling(self) -> None:
+        """
+        MacBookAir8,x: strip the build down to OpenCore itself
+
+        Dortania reports that T2 stops communicating when macOS is booted through
+        OpenCorePkg, on Sonoma as well as Sequoia. To test the boot chain on its own,
+        no kexts and no booter patches are injected; SMBIOS stays genuine.
+        """
+
+        if self.model not in model_array.T2_MacBookAir or self.constants.t2_minimal_boot is False:
+            return
+
+        logging.info("- T2 MacBookAir: minimal boot (no kexts, no booter patches)")
+        for kext in self.config["Kernel"]["Add"]:
+            kext["Enabled"] = False
+        for patch in self.config["Booter"]["Patch"]:
+            patch["Enabled"] = False
+
+        self.config["NVRAM"]["Add"]["4D1FDA02-38C7-4A6A-9CC6-4BCCA8B30102"].pop("revpatch", None)
+        self.config["NVRAM"]["Add"]["4D1FDA02-38C7-4A6A-9CC6-4BCCA8B30102"].pop("revblock", None)
+        boot_args = self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"]
+        self.config["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"] = " ".join(
+            arg for arg in boot_args.split() if arg != "-lilubetaall"
+        )
+
+
     def _save_config(self) -> None:
         """
         Save config.plist to disk
@@ -161,6 +189,7 @@ class BuildOpenCore:
         self._build_efi()
         if self.constants.allow_oc_everywhere is False or self.constants.allow_native_spoofs is True or (self.constants.custom_serial_number != "" and self.constants.custom_board_serial_number != ""):
             smbios.BuildSMBIOS(self.model, self.constants, self.config).set_smbios()
+        self._t2_minimal_handling()
         support.BuildSupport(self.model, self.constants, self.config).cleanup()
         self._save_config()
 
