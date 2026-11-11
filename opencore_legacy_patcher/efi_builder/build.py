@@ -157,6 +157,8 @@ class BuildOpenCore:
             kext["Enabled"] = False
         for patch in self.config["Booter"]["Patch"]:
             patch["Enabled"] = False
+        # Don't register OpenCore in the firmware boot order: the USB stays opt-in via Option key
+        self.config["Misc"]["Boot"]["LauncherOption"] = "Disabled"
 
         self.config["NVRAM"]["Add"]["4D1FDA02-38C7-4A6A-9CC6-4BCCA8B30102"].pop("revpatch", None)
         self.config["NVRAM"]["Add"]["4D1FDA02-38C7-4A6A-9CC6-4BCCA8B30102"].pop("revblock", None)
