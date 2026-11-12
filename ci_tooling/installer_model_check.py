@@ -122,6 +122,15 @@ def main() -> None:
         print("```js")
         print("\n".join(hits[:60]) or "(none found)")
         print("```\n")
+        script = "\n".join(re.findall(r"<script[^>]*>(.*?)</script>", dist, re.S))
+        lines = script.splitlines()
+        first = next((i for i, l in enumerate(lines) if "virtualBoardID" in l or "supportedBoardIDs" in l), None)
+        if first is not None:
+            print("### Full compatibility check (board-ids masked)\n")
+            print("```js")
+            for number in range(max(first - 5, 0), min(first + 160, len(lines))):
+                print(f"{number + 1:5}: {re.sub(r'Mac-[0-9A-F]{16}', 'Mac-…', lines[number])[:300]}")
+            print("```\n")
         for name, body in functions_mentioning(dist, ["board", "model", "nonSupported", "supported"]):
             print(f"#### function {name}\n```js\n{re.sub(r'Mac-[0-9A-F]{16}', 'Mac-…', body)[:3000]}\n```\n")
 
