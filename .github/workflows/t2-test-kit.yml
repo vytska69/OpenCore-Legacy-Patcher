@@ -56,7 +56,9 @@ jobs:
 
       - name: Boot every variant to the OpenCore picker in QEMU
         run: |
-          [ -e /dev/kvm ] && sudo chmod 666 /dev/kvm && ACCEL="-accel kvm" || ACCEL="-accel tcg"
+          # The runner's CPU is AMD; OpenCore probes vendor-specific MSRs, so emulate an Intel CPU (TCG)
+          # like the real MacBookAir8,1 instead of passing the host CPU through KVM.
+          ACCEL="-accel tcg,thread=multi"
           OVMF=$(ls /usr/share/OVMF/OVMF_CODE_4M.fd /usr/share/OVMF/OVMF_CODE.fd /usr/share/ovmf/OVMF.fd 2>/dev/null | head -1)
           VARS=$(ls /usr/share/OVMF/OVMF_VARS_4M.fd /usr/share/OVMF/OVMF_VARS.fd 2>/dev/null | head -1)
           status=0
@@ -76,15 +78,24 @@ jobs:
           plistlib.dump(c, open(p, "wb"))
           PY
             cp "$VARS" "$work/vars.fd"
-            timeout 90 qemu-system-x86_64 $ACCEL -machine q35 -m 2048 -cpu max \
+            log="reports/qemu-$name.log"
+            qemu-system-x86_64 $ACCEL -machine q35 -m 2048 -cpu Skylake-Client -smp 2 \
               -drive if=pflash,format=raw,readonly=on,file="$OVMF" \
               -drive if=pflash,format=raw,file="$work/vars.fd" \
               -drive file=fat:rw:"$work",format=raw \
-              -vga std -display none -serial file:"reports/qemu-$name.log" -no-reboot || true
-            if grep -q "OCB:" "reports/qemu-$name.log" && ! grep -qiE "halting|critical|OCS: .*(fail|error)" "reports/qemu-$name.log"; then
-              echo "PASS qemu $name ($(grep -c 'OCB:' reports/qemu-$name.log) boot-picker log lines)"
+              -vga std -display none -serial file:"$log" -no-reboot &
+            qpid=$!
+            # Stop as soon as the boot picker is up, or after 180 s
+            for i in $(seq 1 180); do
+              grep -q "OCB: Showing menu\|OCB: Timeout\|X64 Exception" "$log" 2>/dev/null && break
+              kill -0 $qpid 2>/dev/null || break
+              sleep 1
+            done
+            kill $qpid 2>/dev/null; wait $qpid 2>/dev/null || true
+            if grep -q "OCB:" "$log" && ! grep -qiE "X64 Exception|halting|critical|OCS: .*(fail|error)" "$log"; then
+              echo "PASS qemu $name: $(grep -o 'OCB: Showing menu.*\|OCB: Timeout.*' "$log" | head -1)"
             else
-              echo "FAIL qemu $name"; tail -40 "reports/qemu-$name.log"; status=1
+              echo "FAIL qemu $name"; tail -40 "$log"; status=1
             fi
           done
           exit $status
