@@ -100,6 +100,19 @@ def _variant_b5(config: dict) -> None:
         config["Booter"]["Quirks"][quirk] = False
 
 
+def _variant_b6(config: dict) -> None:
+    """IOMMU/VT-d off (the documented MacPro7,1 T2 fix)"""
+    # acidanthera/bugtracker#1487: the same "macOS cannot connect to the bridge"
+    # symptom on another T2 Mac (MacPro7,1) was cleared by DisableIoMapper. The
+    # T2's SEP mailbox uses Apple-PCIe DMA (APCIE_EP_FIFO), so with VT-d active
+    # but the SEP's DMA window missing from the IOMMU map, the mailbox DMA can
+    # time out -> "sks request timeout". OCLP's config is byte-identical between
+    # a working T2 Mac (Macmini8,1) and this one, so a global quirk is the only
+    # lever left.
+    config["Kernel"]["Quirks"]["DisableIoMapper"] = True
+    config["Kernel"]["Quirks"]["DisableIoMapperMapping"] = True
+
+
 VARIANTS = {
     "B0-minimalus":           (None,        "Grynas OpenCore: be kext'u ir booter patch'u (bazinis testas B)"),
     "B1-be-SecureBoot":       (_variant_b1, "B0 + SecureBootModel Disabled (OpenCore neemuliuoja Apple Secure Boot)"),
@@ -107,6 +120,7 @@ VARIANTS = {
     "B3-be-SecureBoot-NVRAM": (_variant_b3, "B1 ir B2 kartu (artimiausia natūraliam bootinimui)"),
     "B4-be-BootPolicy":       (_variant_b4, "B0 + firmware'o AppleBootPolicy protokolas"),
     "B5-be-booter-quirks":    (_variant_b5, "B0 + be ForceBooterSignature ir ProtectSecureBoot"),
+    "B6-be-IOMMU":            (_variant_b6, "B0 + DisableIoMapper (dokumentuotas MacPro7,1 T2 pataisymas, acidanthera#1487)"),
 }
 
 

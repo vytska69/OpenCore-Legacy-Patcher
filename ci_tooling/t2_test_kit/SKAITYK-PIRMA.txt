@@ -64,9 +64,14 @@ KAIP TESTI (sprendimu medis)
       -> OpenCore T2 nelauzia. Pereinam prie Sequoia.
 
   A svarus, B0 su sks klaidomis ar panic
-      -> kaltas OpenCore. Testuok B3 (atjungta ir Secure Boot, ir NVRAM).
-           B3 svarus  -> testuok B1 ir B2 atskirai, kad rastum kuris.
-           B3 su klaidom -> testuok B4, paskui B5.
+      -> kaltas OpenCore. Pirmiausia testuok B6 (DisableIoMapper):
+         tai dokumentuotas to paties simptomo pataisymas kitam T2 Mac'ui
+         (MacPro7,1, acidanthera#1487), ir OCLP config identiškas veikianciam
+         T2 Mac'ui, tai globalus quirk'as - vienintelis likes svertas.
+           B6 svarus (subootina) -> RADOM. Pranesk, perkeliu i nuolatini build'a.
+           B6 su klaidom -> testuok B3 (be Secure Boot ir NVRAM).
+             B3 svarus -> testuok B1 ir B2 atskirai.
+             B3 su klaidom -> testuok B4, paskui B5.
 
   A irgi su sks klaidomis
       -> problema ne OpenCore. Atsiusk A rezultata, ziuresim toliau.
