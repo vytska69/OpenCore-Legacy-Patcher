@@ -56,6 +56,10 @@ jobs:
           "$PY" -m pip download --only-binary=:all: --no-deps --platform macosx_10_10_universal2 \
             --python-version 3.11 --dest wx_tmp "wxPython==4.2.2"
           "$PY" -m pip install --force-reinstall --no-deps wx_tmp/wxPython-4.2.2-*.whl
+          # numpy came in with newer wxPython; OCLP never imports it (only optional
+          # wx.lib modules do) and PyPI has no universal2 numpy for Python 3.11.
+          "$PY" -m pip uninstall -y numpy
+          "$PY" -c "import wx; print('wx', wx.version())"
 
       - name: Check every compiled module is universal2
         run: |
