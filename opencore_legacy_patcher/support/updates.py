@@ -15,7 +15,7 @@ from . import network_handler
 from .. import constants
 
 
-REPO_LATEST_RELEASE_URL: str = "https://api.github.com/repos/dortania/OpenCore-Legacy-Patcher/releases/latest"
+REPO_LATEST_RELEASE_URL: str = "https://api.github.com/repos/vytska69/OpenCore-Legacy-Patcher/releases/latest"
 
 
 class CheckBinaryUpdates:

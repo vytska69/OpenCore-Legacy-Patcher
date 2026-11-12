@@ -1,5 +1,17 @@
 # OpenCore Legacy Patcher changelog
 
+## 3.0.1
+Fork release (vytska69/OpenCore-Legacy-Patcher), based on upstream 3.0.0. Unsigned test build.
+- MacBookAir8,1 / 8,2 (T2): building is allowed again, in a T2 minimal boot mode
+  - No kexts and no booter patches, genuine SMBIOS, SIP and SecureBootModel at upstream defaults
+  - Uses the T2 firmware's own APFS driver (no apfs_aligned.efi)
+  - OpenCore is kept out of the firmware boot order
+  - EFI/BOOT/BOOTx64.efi is installed so the drive shows up in the T2 Startup Manager
+  - Purpose: test whether booting through OpenCore alone breaks the T2 (AppleKeyStore "sks request timeout"); not yet a Sequoia setup
+- Updates and the AutoPkg installer are fetched from this fork's releases
+- Privileged helper built without the Dortania Team ID check, so the unsigned build can install OpenCore
+- CI: T2 hardware test kit (EFI variants B0-B6 + results collector) and an installer compatibility report
+
 ## 3.0.0
 - Implement macOS 26 Tahoe support (EduCovas & ASentientBot)
   - Non-Metal GPU acceleration patches for macOS 26 

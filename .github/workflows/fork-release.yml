@@ -1,0 +1,103 @@
+name: Fork - Build and Release
+
+# Upstream's build job only runs on Dortania's own runner (repository_owner == 'dortania').
+# This builds the same packages on a GitHub-hosted runner, unsigned, and publishes them
+# as a release of this fork. The release tag is created by the release step itself.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version / tag (must match constants.patcher_version)"
+        required: true
+        default: "3.0.1"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build packages and publish release
+    runs-on: macos-15
+    timeout-minutes: 120
+    env:
+      PY: /Library/Frameworks/Python.framework/Versions/3.11/bin/python3
+      VERSION: ${{ inputs.version }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check version matches constants.py
+        run: |
+          code_version=$(sed -n 's/.*patcher_version: *str = "\([^"]*\)".*/\1/p' opencore_legacy_patcher/constants.py)
+          echo "constants.py: $code_version, requested: $VERSION"
+          [ "$code_version" = "$VERSION" ]
+
+      - name: Install universal2 Python 3.11 (python.org)
+        run: |
+          curl -fsSL -o python.pkg https://www.python.org/ftp/python/3.11.9/python-3.11.9-macos11.pkg
+          sudo installer -pkg python.pkg -target /
+          "$PY" --version
+          file /Library/Frameworks/Python.framework/Versions/3.11/bin/python3.11
+
+      - name: Install dependencies
+        run: "$PY -m pip install -r requirements.txt"
+
+      - name: Force universal2 charset_normalizer
+        run: |
+          "$PY" -m pip uninstall -y charset_normalizer
+          "$PY" -m pip download --platform macosx_10_9_universal2 --only-binary=:all: --dest charset_tmp charset-normalizer
+          "$PY" -m pip install charset_tmp/charset_normalizer-*.whl
+
+      - name: Build privileged helper without the Dortania Team ID check
+        # The helper only serves clients signed with Dortania's Team ID; an unsigned
+        # fork build would get error 166 on every root operation (EFI install included).
+        run: |
+          make -C ci_tooling/privileged_helper_tool debug
+          file ci_tooling/privileged_helper_tool/com.dortania.opencore-legacy-patcher.privileged-helper
+
+      - name: Prepare Assets (--prepare-assets)
+        run: "$PY Build-Project.command --run-as-individual-steps --reset-dmg-cache --prepare-assets"
+
+      - name: Prepare Application (--prepare-application)
+        run: >
+          "$PY" Build-Project.command
+          --git-branch "${{ github.ref }}"
+          --git-commit-url "${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}"
+          --git-commit-date "$(git log -1 --format=%cI)"
+          --reset-pyinstaller-cache
+          --run-as-individual-steps
+          --prepare-application
+
+      - name: Prepare Package (--prepare-package)
+        run: "$PY Build-Project.command --run-as-individual-steps --prepare-package"
+
+      - name: List packages
+        run: ls -la dist/*.pkg
+
+      - name: Release notes from CHANGELOG
+        run: |
+          awk -v v="## $VERSION" '$0==v {p=1; next} p && /^## / {exit} p' CHANGELOG.md > release_notes.md
+          cat >> release_notes.md <<'EOF'
+
+          ### Installing (unsigned build)
+          The packages are not signed or notarized. Install from Terminal:
+          ```
+          sudo installer -pkg ~/Downloads/OpenCore-Patcher.pkg -target /
+          xattr -dr com.apple.quarantine "/Applications/OpenCore-Patcher.app"
+          ```
+          EOF
+          cat release_notes.md
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: OpenCore Legacy Patcher ${{ inputs.version }} (vytska69 fork)
+          body_path: release_notes.md
+          prerelease: true
+          files: |
+            dist/OpenCore-Patcher.pkg
+            dist/AutoPkg-Assets.pkg
+            dist/OpenCore-Patcher-Uninstaller.pkg
