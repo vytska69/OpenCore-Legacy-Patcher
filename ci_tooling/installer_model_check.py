@@ -116,6 +116,11 @@ def main() -> None:
         models = sorted(set(re.findall(r"\b(?:MacBook(?:Air|Pro)?|Macmini|iMac(?:Pro)?|MacPro)\d+,\d+\b", dist)))
         print(f"- board-ids listed: {len(board_ids)}; models listed: {len(models)}")
         print(f"- board-ids: {', '.join(board_ids)}")
+        device_ids = re.search(r"supportedDeviceIDs\s*=\s*\[([^\]]*)\]", dist)
+        device_ids = re.findall(r"'([^']+)'", device_ids.group(1)) if device_ids else []
+        print(f"- T2 bridge model `J140KAP` in supportedDeviceIDs: **{'j140kap' in [d.lower() for d in device_ids]}**")
+        print(f"- `VMM-x86_64` in supportedDeviceIDs: **{'vmm-x86_64' in [d.lower() for d in device_ids]}**")
+        print(f"- supportedDeviceIDs ({len(device_ids)}): {', '.join(sorted(device_ids))}")
         print()
         names, hits = board_id_usage(dist, args.board)
         print(f"### Script lines defining or using the board-id list (variables: {', '.join(names) or '-'})\n")
@@ -131,7 +136,15 @@ def main() -> None:
             for number in range(max(first - 5, 0), min(first + 160, len(lines))):
                 print(f"{number + 1:5}: {re.sub(r'Mac-[0-9A-F]{16}', 'Mac-…', lines[number])[:300]}")
             print("```\n")
-        for name, body in functions_mentioning(dist, ["board", "model", "nonSupported", "supported"]):
+        for helper in ("isVirtualMachine", "fetchMacPlatform"):
+            for name, body in functions_mentioning(dist, [helper]):
+                if name == helper:
+                    print(f"#### function {name}\n```js\n{body[:3000]}\n```\n")
+        helper_vars = re.findall(r"var\s+(isVirtualMachine|fetchMacPlatform)\s*=\s*function[^{]*\{", dist)
+        for helper in helper_vars:
+            start = dist.index(f"var {helper}")
+            print(f"#### {helper}\n```js\n{dist[start:start + 1500]}\n```\n")
+        for name, body in []:
             print(f"#### function {name}\n```js\n{re.sub(r'Mac-[0-9A-F]{16}', 'Mac-…', body)[:3000]}\n```\n")
 
 
