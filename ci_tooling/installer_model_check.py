@@ -53,6 +53,24 @@ def describe(dist: str):
             build.group(1) if build else "?")
 
 
+def board_id_usage(dist: str, board: str):
+    """Lines of the installer script that define or use the board-id list"""
+    script = "\n".join(re.findall(r"<script[^>]*>(.*?)</script>", dist, re.S)) or dist
+    lines = script.splitlines()
+    names = set()
+    for line in lines:
+        if re.search(r"Mac-[0-9A-F]{16}", line):
+            m = re.match(r"\s*(?:var|let|const)?\s*([A-Za-z_$][\w$]*)\s*=", line)
+            if m:
+                names.add(m.group(1))
+    hits = []
+    for number, line in enumerate(lines, 1):
+        text = re.sub(r"Mac-[0-9A-F]{16}", "Mac-…", line).strip()
+        if (any(re.search(rf"\b{re.escape(n)}\b", line) for n in names) or re.search(r"board", line, re.I)) and len(text) < 400:
+            hits.append(f"{number:5}: {text}")
+    return sorted(names), hits
+
+
 def functions_mentioning(dist: str, needles):
     script = "\n".join(re.findall(r"<script[^>]*>(.*?)</script>", dist, re.S))
     for match in re.finditer(r"function\s+(\w+)\s*\([^)]*\)\s*\{", script):
@@ -97,10 +115,15 @@ def main() -> None:
         board_ids = sorted(set(re.findall(r"Mac-[0-9A-F]{16}", dist)))
         models = sorted(set(re.findall(r"\b(?:MacBook(?:Air|Pro)?|Macmini|iMac(?:Pro)?|MacPro)\d+,\d+\b", dist)))
         print(f"- board-ids listed: {len(board_ids)}; models listed: {len(models)}")
+        print(f"- board-ids: {', '.join(board_ids)}")
         print()
-        print("### Installation-check functions that reference boards or models\n")
+        names, hits = board_id_usage(dist, args.board)
+        print(f"### Script lines defining or using the board-id list (variables: {', '.join(names) or '-'})\n")
+        print("```js")
+        print("\n".join(hits[:60]) or "(none found)")
+        print("```\n")
         for name, body in functions_mentioning(dist, ["board", "model", "nonSupported", "supported"]):
-            print(f"#### {name}\n```js\n{body[:4000]}\n```\n")
+            print(f"#### function {name}\n```js\n{re.sub(r'Mac-[0-9A-F]{16}', 'Mac-…', body)[:3000]}\n```\n")
 
 
 if __name__ == "__main__":

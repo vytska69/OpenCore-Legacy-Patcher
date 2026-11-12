@@ -138,6 +138,8 @@ def lay_out_variant(base: Path, out: Path, name: str, edit) -> None:
     config_path = target / "EFI/OC/config.plist"
     config = plistlib.load(config_path.open("rb"))
     assert config["Kernel"]["Add"] == [] and config["Booter"]["Patch"] == [], "base is not minimal"
+    # OCLP adds this on purpose outside its own CI validation; OpenCore finds Windows without it
+    config["Misc"]["BlessOverride"] = [b for b in config["Misc"]["BlessOverride"] if b != "\\EFI\\Microsoft\\Boot\\bootmgfw.efi"]
     if edit:
         edit(config)
     plistlib.dump(config, config_path.open("wb"), sort_keys=True)
