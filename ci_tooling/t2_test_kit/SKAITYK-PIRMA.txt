@@ -1,0 +1,81 @@
+T2 TESTU PAKETAS - MacBookAir8,1
+================================
+
+Tikslas: suzinoti, ar T2 (AppleKeyStore "sks request timeout") luzta
+vien nuo to, kad Mac'as bootinamas per OpenCore, ir jei taip - kuris
+OpenCore nustatymas kaltas.
+
+Visi EFI variantai nieko nekeicia diske. Jie tik paleidzia tavo
+Sonoma per OpenCore. Iskrauti visada galima tiesiog istraukus USB.
+
+PAKETE
+------
+  SKAITYK-PIRMA.txt   - sis failas
+  VARIANTAI.txt       - ka keicia kiekvienas variantas
+  collect.sh          - rezultatu surinkimas (paleidi po kiekvieno testo)
+  B0-minimalus ... B5 - EFI variantai, kiekvienas savo aplanke
+
+
+PASIRUOSIMAS (viena karta)
+--------------------------
+1. Mac'e turi buti Sonoma.
+   Jei yra tik Windows: isjunk Mac'a, ijunk laikydamas
+   Cmd + Option + R (Internet Recovery). Ten VoiceOver: Cmd + F5.
+   Pasirink "Reinstall macOS Sonoma".
+
+2. Startup Security - "No Security" ir leisti bootinti is isorines laikmenos:
+   Recovery (Cmd + R ijungiant) -> Utilities meniu -> Startup Security Utility.
+   Pasirink "No Security" ir "Allow booting from external or removable media".
+   Svarbu: ir testas A, ir testai B daromi su TUO PACIU nustatymu.
+
+3. USB atmintine, FAT32 (MS-DOS FAT).
+   macOS Terminale (atsargiai - patikrink disko numeri su: diskutil list external):
+     diskutil eraseDisk FAT32 T2TEST MBRFormat /dev/diskN
+
+4. Nukopijuok collect.sh i Mac'o darbalauki.
+
+
+TESTO TVARKA
+------------
+SVARBU: pirmiau testas A, tik paskui B. OpenCore palieka NVRAM irasu,
+kurie gali sugadinti natūralaus bootinimo rezultatus.
+
+TESTAS A - natūraliai, be USB
+  1. Paleisk Mac'a iprastai, be USB.
+  2. Prisijunk. Isimink: kiek truko prisijungimas, ar veikia Touch ID.
+  3. Terminale:  bash ~/Desktop/collect.sh A
+
+TESTAS B0 - per OpenCore
+  1. I USB sakni nukopijuok aplanko B0-minimalus turini (aplanka EFI).
+     USB turi buti:  EFI/BOOT/BOOTx64.efi  ir  EFI/OC/config.plist
+  2. Isjunk Mac'a. Ijunk laikydamas Option (Alt).
+     Startup Manager: rodyklemis pasirink "EFI Boot", Enter.
+     OpenCore meniu pats paleis Sonoma po 5 sekundziu.
+  3. Prisijunk. Isimink prisijungimo laika ir Touch ID.
+  4. Terminale:  bash ~/Desktop/collect.sh B0
+
+PO KIEKVIENO B TESTO pries bootinant vel natūraliai:
+  NVRAM reset - ijungdamas laikyk Option + Cmd + P + R apie 20 sekundziu.
+
+
+KAIP TESTI (sprendimu medis)
+----------------------------
+  A ir B0 abu svarus (0 sks eiluciu)
+      -> OpenCore T2 nelauzia. Pereinam prie Sequoia.
+
+  A svarus, B0 su sks klaidomis ar panic
+      -> kaltas OpenCore. Testuok B3 (atjungta ir Secure Boot, ir NVRAM).
+           B3 svarus  -> testuok B1 ir B2 atskirai, kad rastum kuris.
+           B3 su klaidom -> testuok B4, paskui B5.
+
+  A irgi su sks klaidomis
+      -> problema ne OpenCore. Atsiusk A rezultata, ziuresim toliau.
+
+Kiekvienam testui keisk tik USB turini (EFI aplanka) ir collect.sh
+pavadinima: bash ~/Desktop/collect.sh B3  ir t.t.
+
+Jei Mac'as uzstringa arba persikrauna (panic): istrauk USB, padaryk
+NVRAM reset, bootink natūraliai ir paleisk  bash ~/Desktop/collect.sh B0-panic
+(skriptas suras paskutini panic irasa).
+
+Atsiusk visus T2-testas-*.txt failus is darbalaukio.

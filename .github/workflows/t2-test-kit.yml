@@ -1,0 +1,125 @@
+name: T2 - Test Kit
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'ci_tooling/t2_test_kit.py'
+      - 'ci_tooling/t2_test_kit/**'
+      - 'ci_tooling/installer_model_check.py'
+      - '.github/workflows/t2-test-kit.yml'
+      - 'opencore_legacy_patcher/efi_builder/**'
+      - 'opencore_legacy_patcher/support/defaults.py'
+      - 'opencore_legacy_patcher/datasets/model_array.py'
+
+jobs:
+  kit:
+    name: Build and boot-check EFI variants
+    runs-on: ubuntu-latest
+    env:
+      OPENCORE_VERSION: "1.0.6"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python3 -m pip install requests packaging
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq qemu-system-x86 ovmf
+          sudo mkdir -p /Users/Shared && sudo chmod 777 /Users/Shared
+
+      - name: Build test kit
+        run: python3 ci_tooling/t2_test_kit.py T2-Test-Kit
+
+      - name: ocvalidate every variant
+        run: |
+          curl -fsSL -o oc.zip "https://github.com/acidanthera/OpenCorePkg/releases/download/${OPENCORE_VERSION}/OpenCore-${OPENCORE_VERSION}-RELEASE.zip"
+          unzip -q -o oc.zip "Utilities/ocvalidate/ocvalidate.linux" -d oc
+          chmod +x oc/Utilities/ocvalidate/ocvalidate.linux
+          mkdir -p reports
+          status=0
+          for v in T2-Test-Kit/B*/; do
+            name=$(basename "$v")
+            if oc/Utilities/ocvalidate/ocvalidate.linux "$v/EFI/OC/config.plist" > "reports/ocvalidate-$name.txt" 2>&1; then
+              echo "PASS ocvalidate $name"
+            else
+              echo "FAIL ocvalidate $name"; cat "reports/ocvalidate-$name.txt"; status=1
+            fi
+          done
+          exit $status
+
+      - name: Boot every variant to the OpenCore picker in QEMU
+        run: |
+          [ -e /dev/kvm ] && sudo chmod 666 /dev/kvm && ACCEL="-accel kvm" || ACCEL="-accel tcg"
+          OVMF=$(ls /usr/share/OVMF/OVMF_CODE_4M.fd /usr/share/OVMF/OVMF_CODE.fd /usr/share/ovmf/OVMF.fd 2>/dev/null | head -1)
+          VARS=$(ls /usr/share/OVMF/OVMF_VARS_4M.fd /usr/share/OVMF/OVMF_VARS.fd 2>/dev/null | head -1)
+          status=0
+          for v in T2-Test-Kit/B*/; do
+            name=$(basename "$v")
+            work=$(mktemp -d)
+            cp -r "$v/EFI" "$work/"
+            # Serial logging only in this throwaway copy, never in the shipped kit
+            python3 - "$work/EFI/OC/config.plist" <<'PY'
+          import sys, plistlib
+          p = sys.argv[1]
+          c = plistlib.load(open(p, "rb"))
+          c["Misc"]["Debug"]["Target"] = 0x09
+          c["Misc"]["Debug"]["DisplayLevel"] = 0x80000042
+          if "Serial" in c["Misc"]:
+              c["Misc"]["Serial"]["Init"] = True
+          plistlib.dump(c, open(p, "wb"))
+          PY
+            cp "$VARS" "$work/vars.fd"
+            timeout 90 qemu-system-x86_64 $ACCEL -machine q35 -m 2048 -cpu max \
+              -drive if=pflash,format=raw,readonly=on,file="$OVMF" \
+              -drive if=pflash,format=raw,file="$work/vars.fd" \
+              -drive file=fat:rw:"$work",format=raw \
+              -vga std -display none -serial file:"reports/qemu-$name.log" -no-reboot || true
+            if grep -q "OCB:" "reports/qemu-$name.log" && ! grep -qiE "halting|critical|OCS: .*(fail|error)" "reports/qemu-$name.log"; then
+              echo "PASS qemu $name ($(grep -c 'OCB:' reports/qemu-$name.log) boot-picker log lines)"
+            else
+              echo "FAIL qemu $name"; tail -40 "reports/qemu-$name.log"; status=1
+            fi
+          done
+          exit $status
+
+      - name: Upload test kit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: T2-Test-Kit
+          path: T2-Test-Kit
+          retention-days: 30
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: T2-Test-Kit-reports
+          path: reports
+          retention-days: 30
+
+  installer:
+    name: Installer model check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check how Sonoma, Sequoia and Tahoe installers pick supported Macs
+        run: |
+          python3 ci_tooling/installer_model_check.py --major 14 --major 15 --major 26 \
+            --board Mac-827FAC58A8FDFA22 --model MacBookAir8,1 | tee installer-model-check.md
+          cat installer-model-check.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-model-check
+          path: installer-model-check.md
+          retention-days: 30
