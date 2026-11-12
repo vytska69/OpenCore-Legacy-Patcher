@@ -86,7 +86,7 @@ jobs:
             timeout -k 10 150 qemu-system-x86_64 $ACCEL -machine q35 -m 2048 -cpu Skylake-Client -smp 2 \
               -drive if=pflash,format=raw,readonly=on,file="$OVMF" \
               -drive if=pflash,format=raw,file="$work/vars.fd" \
-              -drive file=fat:"$work",format=raw,readonly=on \
+              -drive file=fat:rw:"$work",format=raw \
               -vga std -display none -serial file:"$log" -no-reboot &
             tpid=$!
             while kill -0 $tpid 2>/dev/null; do
