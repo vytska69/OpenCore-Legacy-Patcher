@@ -49,6 +49,25 @@ jobs:
           "$PY" -m pip download --platform macosx_10_9_universal2 --only-binary=:all: --dest charset_tmp charset-normalizer
           "$PY" -m pip install charset_tmp/charset_normalizer-*.whl
 
+      - name: Force universal2 wxPython
+        # wxPython stopped shipping universal2 wheels after 4.2.2 (4.2.3+ are split
+        # arm64 / x86_64); PyInstaller's universal2 target needs fat binaries.
+        run: |
+          "$PY" -m pip download --only-binary=:all: --no-deps --platform macosx_10_10_universal2 \
+            --python-version 3.11 --dest wx_tmp "wxPython==4.2.2"
+          "$PY" -m pip install --force-reinstall --no-deps wx_tmp/wxPython-4.2.2-*.whl
+
+      - name: Check every compiled module is universal2
+        run: |
+          site=$("$PY" -c "import site; print(site.getsitepackages()[0])")
+          bad=0
+          while IFS= read -r f; do
+            archs=$(lipo -archs "$f" 2>/dev/null || echo none)
+            case "$archs" in *x86_64*arm64*|*arm64*x86_64*) ;; *) echo "THIN: $archs  $f"; bad=1 ;; esac
+          done < <(find "$site" -type f \( -name "*.so" -o -name "*.dylib" \))
+          [ $bad -eq 0 ] && echo "All compiled modules are universal2"
+          exit $bad
+
       - name: Build privileged helper without the Dortania Team ID check
         # The helper only serves clients signed with Dortania's Team ID; an unsigned
         # fork build would get error 166 on every root operation (EFI install included).
